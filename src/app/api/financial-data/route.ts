@@ -8,11 +8,11 @@ interface AlphaVantageResponse {
   'Time Series (Daily)'?: any;
   'Time Series (60min)'?: any;
   'Time Series (Digital Currency Daily)'?: any;
-  'Digital Currency Daily'?: any;
   'Technical Analysis: RSI'?: any;
-  'Technical Analysis: MACD'?: any;
+  'Technical Analysis: SMA'?: any;
   'Error Message'?: string;
   'Note'?: string;
+  'Information'?: string;
 }
 
 interface FinancialData {
@@ -22,10 +22,10 @@ interface FinancialData {
   changePercent: number;
   volume: number;
   rsi: number;
-  macd: {
-    macd: number;
-    signal: number;
-    histogram: number;
+  movingAverages: {
+    sma20: number;
+    sma50: number;
+    trend: string;
   };
   hourlyData: Array<{
     time: string;
@@ -40,12 +40,16 @@ interface FinancialData {
 async function fetchAlphaVantageData(endpoint: string): Promise<AlphaVantageResponse> {
   const url = `${BASE_URL}${endpoint}&apikey=${ALPHA_VANTAGE_API_KEY}`;
   
+  console.log('Fetching from Alpha Vantage:', url);
+  
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Alpha Vantage API error: ${response.status}`);
   }
   
   const data = await response.json();
+  
+  console.log('Alpha Vantage response keys:', Object.keys(data));
   
   if (data['Error Message']) {
     throw new Error(data['Error Message']);
@@ -55,27 +59,36 @@ async function fetchAlphaVantageData(endpoint: string): Promise<AlphaVantageResp
     throw new Error('API call frequency limit reached. Please try again later.');
   }
   
+  if (data['Information'] && data['Information'].includes('premium')) {
+    console.warn('Premium endpoint accessed:', data['Information']);
+    return data;
+  }
+  
   return data;
+}
+
+// Helper function to add delay between API calls
+function delay(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Calculate simple moving average from price data
+function calculateSMA(prices: number[], period: number): number {
+  if (prices.length < period) return prices[prices.length - 1] || 0;
+  
+  const slice = prices.slice(0, period);
+  const sum = slice.reduce((a, b) => a + b, 0);
+  return sum / period;
 }
 
 async function getStockData(symbol: string): Promise<FinancialData> {
   try {
-    // Fetch intraday data (hourly)
+    // Fetch intraday data (hourly) - this is the most important one
     const intradayData = await fetchAlphaVantageData(
       `?function=TIME_SERIES_INTRADAY&symbol=${symbol}&interval=60min&outputsize=compact`
     );
     
-    // Fetch RSI
-    const rsiData = await fetchAlphaVantageData(
-      `?function=RSI&symbol=${symbol}&interval=daily&time_period=14&series_type=close`
-    );
-    
-    // Fetch MACD
-    const macdData = await fetchAlphaVantageData(
-      `?function=MACD&symbol=${symbol}&interval=daily&series_type=close`
-    );
-    
-    // Process intraday data
+    // Process intraday data first
     const timeSeries = intradayData['Time Series (60min)'];
     if (!timeSeries) {
       throw new Error('No intraday data found for this symbol');
@@ -101,19 +114,39 @@ async function getStockData(symbol: string): Promise<FinancialData> {
       volume: parseInt(timeSeries[time]['5. volume'])
     }));
     
-    // Process RSI
-    const rsiTimeSeries = rsiData['Technical Analysis: RSI'];
-    const latestRsi = rsiTimeSeries ? Object.values(rsiTimeSeries)[0] as any : null;
-    const rsi = latestRsi ? parseFloat(latestRsi['RSI']) : 50;
+    // Calculate moving averages from hourly data
+    const closePrices = hourlyData.map(d => d.close);
+    const sma20 = calculateSMA(closePrices, Math.min(20, closePrices.length));
+    const sma50 = calculateSMA(closePrices, Math.min(50, closePrices.length));
     
-    // Process MACD
-    const macdTimeSeries = macdData['Technical Analysis: MACD'];
-    const latestMacd = macdTimeSeries ? Object.values(macdTimeSeries)[0] as any : null;
-    const macd = latestMacd ? {
-      macd: parseFloat(latestMacd['MACD']),
-      signal: parseFloat(latestMacd['MACD_Signal']),
-      histogram: parseFloat(latestMacd['MACD_Hist'])
-    } : { macd: 0, signal: 0, histogram: 0 };
+    // Determine trend
+    let trend = 'Neutral';
+    if (currentPrice > sma20 && sma20 > sma50) {
+      trend = 'Bullish';
+    } else if (currentPrice < sma20 && sma20 < sma50) {
+      trend = 'Bearish';
+    }
+    
+    // Add delay before next API call to avoid rate limiting
+    await delay(1000);
+    
+    // Fetch RSI with error handling
+    let rsi = 50; // Default RSI
+    try {
+      const rsiData = await fetchAlphaVantageData(
+        `?function=RSI&symbol=${symbol}&interval=daily&time_period=14&series_type=close`
+      );
+      
+      const rsiTimeSeries = rsiData['Technical Analysis: RSI'];
+      if (rsiTimeSeries) {
+        const latestRsi = Object.values(rsiTimeSeries)[0] as any;
+        if (latestRsi && latestRsi['RSI']) {
+          rsi = parseFloat(latestRsi['RSI']);
+        }
+      }
+    } catch (error) {
+      console.warn('RSI fetch failed, using default:', error);
+    }
     
     return {
       symbol,
@@ -122,7 +155,11 @@ async function getStockData(symbol: string): Promise<FinancialData> {
       changePercent,
       volume: parseInt(latestData['5. volume']),
       rsi,
-      macd,
+      movingAverages: {
+        sma20,
+        sma50,
+        trend
+      },
       hourlyData
     };
     
@@ -154,7 +191,7 @@ async function getCryptoData(symbol: string): Promise<FinancialData> {
     const change = currentPrice - previousPrice;
     const changePercent = (change / previousPrice) * 100;
     
-    // Create mock hourly data from daily data (simplified)
+    // Create hourly data from daily data (simplified)
     const hourlyData = times.slice(0, 7).map(time => ({
       time,
       open: parseFloat(timeSeries[time]['1a. open (USD)']),
@@ -164,14 +201,31 @@ async function getCryptoData(symbol: string): Promise<FinancialData> {
       volume: parseInt(timeSeries[time]['5. volume'])
     }));
     
+    // Calculate moving averages from daily data
+    const closePrices = hourlyData.map(d => d.close);
+    const sma20 = calculateSMA(closePrices, Math.min(7, closePrices.length)); // Use 7 days instead of 20 for crypto
+    const sma50 = calculateSMA(closePrices, Math.min(7, closePrices.length)); // Limited data available
+    
+    // Determine trend
+    let trend = 'Neutral';
+    if (currentPrice > sma20) {
+      trend = 'Bullish';
+    } else if (currentPrice < sma20) {
+      trend = 'Bearish';
+    }
+    
     return {
       symbol,
       currentPrice,
       change,
       changePercent,
       volume: parseInt(latestData['5. volume']),
-      rsi: 50, // Default RSI for crypto (would need separate API call)
-      macd: { macd: 0, signal: 0, histogram: 0 }, // Default MACD
+      rsi: 50, // Default RSI for crypto (RSI is premium for crypto)
+      movingAverages: {
+        sma20,
+        sma50,
+        trend
+      },
       hourlyData
     };
     
