@@ -209,12 +209,72 @@ interface AIAnalysisResult {
   stocksAnalyzed: number;
 }
 
+interface IndianStock {
+  symbol: string;
+  name: string;
+  exchange: 'NSE' | 'BSE';
+  currentPrice: number;
+  change: number;
+  changePercent: number;
+  volume: number;
+  avgVolume: number;
+  marketCap: number;
+  peRatio: number;
+  pbRatio: number;
+  dividendYield: number;
+  sector: string;
+  industry: string;
+  fiftyTwoWeekHigh: number;
+  fiftyTwoWeekLow: number;
+  rsi: number;
+  movingAverages: {
+    sma20: number;
+    sma50: number;
+    sma200: number;
+    trend: string;
+  };
+  technicalSignals: {
+    nearSupport: boolean;
+    nearResistance: boolean;
+    oversold: boolean;
+    overbought: boolean;
+    breakoutCandidate: boolean;
+    volumeSpike: boolean;
+  };
+  fundamentals: {
+    revenue: number;
+    netIncome: number;
+    eps: number;
+    bookValue: number;
+    roe: number;
+    debt: number;
+  };
+  score: number;
+  reasoning: string[];
+}
+
+interface IndianStockResults {
+  success: boolean;
+  totalScreened: number;
+  candidatesFound: number;
+  criteria: {
+    minScore: number;
+    limit: number;
+    exchange?: string;
+    sector?: string;
+    minPrice?: number;
+    maxPrice?: number;
+  };
+  stocks: IndianStock[];
+  timestamp: string;
+}
+
 export default function Home() {
   const [symbol, setSymbol] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [financialData, setFinancialData] = useState<FinancialData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'analyze' | 'screen' | 'accumulation' | 'ai-analysis'>('analyze');
+  const [activeTab, setActiveTab] = useState<'analyze' | 'screen' | 'accumulation' | 'ai-analysis' | 'indian-stocks'>('analyze');
   const [isScreening, setIsScreening] = useState(false);
   const [screeningResults, setScreeningResults] = useState<ScreeningResults | null>(null);
   const [minScore, setMinScore] = useState(50);
@@ -227,6 +287,14 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [isAIAnalyzing, setIsAIAnalyzing] = useState(false);
   const [aiAnalysisResult, setAIAnalysisResult] = useState<AIAnalysisResult | null>(null);
+  const [isIndianStockScreening, setIsIndianStockScreening] = useState(false);
+  const [indianStockResults, setIndianStockResults] = useState<IndianStockResults | null>(null);
+  const [indianMinScore, setIndianMinScore] = useState(60);
+  const [indianMaxResults, setIndianMaxResults] = useState(20);
+  const [selectedExchange, setSelectedExchange] = useState<string>('');
+  const [selectedSector, setSelectedSector] = useState<string>('');
+  const [minPrice, setMinPrice] = useState<number>(0);
+  const [maxPrice, setMaxPrice] = useState<number>(10000);
 
   const handleAnalyze = async () => {
     if (!symbol.trim()) return;
@@ -328,10 +396,50 @@ export default function Home() {
     }
   };
 
+  const handleIndianStockScreen = async () => {
+    setIsIndianStockScreening(true);
+    setError(null);
+    setIndianStockResults(null);
+    
+    try {
+      const params = new URLSearchParams({
+        minScore: indianMinScore.toString(),
+        limit: indianMaxResults.toString(),
+      });
+      
+      if (selectedExchange) params.append('exchange', selectedExchange);
+      if (selectedSector) params.append('sector', selectedSector);
+      if (minPrice > 0) params.append('minPrice', minPrice.toString());
+      if (maxPrice < 10000) params.append('maxPrice', maxPrice.toString());
+      
+      const response = await fetch(`/api/indian-stocks?${params}`);
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to screen Indian stocks');
+      }
+      
+      setIndianStockResults(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred during Indian stock screening');
+    } finally {
+      setIsIndianStockScreening(false);
+    }
+  };
+
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(price);
+  };
+
+  const formatIndianPrice = (price: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }).format(price);
@@ -456,6 +564,16 @@ export default function Home() {
               }`}
             >
               AI Investment Advisor
+            </button>
+            <button
+              onClick={() => setActiveTab('indian-stocks')}
+              className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+                activeTab === 'indian-stocks'
+                  ? 'bg-emerald-500 text-white shadow-lg'
+                  : 'text-gray-300 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              Indian Stocks
             </button>
           </div>
         </div>
@@ -1446,6 +1564,274 @@ export default function Home() {
           </div>
         )}
 
+        {/* Indian Stocks Tab */}
+        {activeTab === 'indian-stocks' && (
+          <div className="max-w-6xl mx-auto mb-12">
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20">
+              <div className="flex items-center space-x-4 mb-6">
+                <div className="h-6 w-6 bg-gradient-to-r from-orange-400 to-red-500 rounded-full flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">₹</span>
+                </div>
+                <h3 className="text-xl font-semibold text-white">Indian Stock Screener</h3>
+                <div className="text-sm text-gray-400">NSE & BSE Markets</div>
+              </div>
+              
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Minimum Score (0-100)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={indianMinScore}
+                    onChange={(e) => setIndianMinScore(parseInt(e.target.value))}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Max Results
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={indianMaxResults}
+                    onChange={(e) => setIndianMaxResults(parseInt(e.target.value))}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Exchange
+                  </label>
+                  <select
+                    value={selectedExchange}
+                    onChange={(e) => setSelectedExchange(e.target.value)}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent"
+                  >
+                    <option value="">All Exchanges</option>
+                    <option value="NSE">NSE</option>
+                    <option value="BSE">BSE</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Sector
+                  </label>
+                  <select
+                    value={selectedSector}
+                    onChange={(e) => setSelectedSector(e.target.value)}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent"
+                  >
+                    <option value="">All Sectors</option>
+                    <option value="Banking">Banking</option>
+                    <option value="Technology">Technology</option>
+                    <option value="FMCG">FMCG</option>
+                    <option value="Automobile">Automobile</option>
+                    <option value="Pharma">Pharma</option>
+                    <option value="Energy">Energy</option>
+                    <option value="Steel">Steel</option>
+                    <option value="Cement">Cement</option>
+                    <option value="Telecom">Telecom</option>
+                    <option value="Power">Power</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Min Price (₹)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={minPrice}
+                    onChange={(e) => setMinPrice(parseFloat(e.target.value) || 0)}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Max Price (₹)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={maxPrice}
+                    onChange={(e) => setMaxPrice(parseFloat(e.target.value) || 10000)}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent"
+                  />
+                </div>
+              </div>
+              
+              <button
+                onClick={handleIndianStockScreen}
+                disabled={isIndianStockScreening}
+                className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 disabled:from-gray-600 disabled:to-gray-600 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 disabled:cursor-not-allowed"
+              >
+                {isIndianStockScreening ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                    <span>Screening Indian Stocks...</span>
+                  </div>
+                ) : (
+                  'Screen Indian Stocks'
+                )}
+              </button>
+            </div>
+
+            {/* Indian Stock Results */}
+            {indianStockResults && (
+              <div className="mt-8 bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20">
+                <div className="flex items-center justify-between mb-6">
+                  <h4 className="text-xl font-semibold text-white">
+                    Indian Stock Results
+                  </h4>
+                  <div className="text-sm text-gray-400">
+                    {indianStockResults.candidatesFound} of {indianStockResults.totalScreened} stocks found
+                  </div>
+                </div>
+
+                <div className="grid gap-6">
+                  {indianStockResults.stocks.map((stock, index) => (
+                    <div key={index} className="bg-white/5 rounded-xl p-6 border border-white/10">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h5 className="text-lg font-bold text-white">{stock.symbol}</h5>
+                          <p className="text-gray-400">{stock.name}</p>
+                          <div className="flex items-center space-x-4 mt-2">
+                            <span className="text-xs bg-orange-500/20 text-orange-400 px-2 py-1 rounded">
+                              {stock.exchange}
+                            </span>
+                            <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded">
+                              {stock.sector}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-white">
+                            {formatIndianPrice(stock.currentPrice)}
+                          </div>
+                          <div className={`text-sm font-semibold ${
+                            stock.change >= 0 ? 'text-green-400' : 'text-red-400'
+                          }`}>
+                            {stock.change >= 0 ? (
+                              <TrendingUp className="inline h-4 w-4 mr-1" />
+                            ) : (
+                              <TrendingDown className="inline h-4 w-4 mr-1" />
+                            )}
+                            {formatIndianPrice(Math.abs(stock.change))} ({formatPercentage(stock.changePercent)})
+                          </div>
+                          <div className="text-xs text-gray-400 mt-1">
+                            Score: {stock.score}/100
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                        <div className="bg-white/5 rounded-lg p-3">
+                          <p className="text-xs text-gray-400">Market Cap</p>
+                          <p className="text-white font-semibold">
+                            ₹{(stock.marketCap / 10000000).toFixed(1)}Cr
+                          </p>
+                        </div>
+                        <div className="bg-white/5 rounded-lg p-3">
+                          <p className="text-xs text-gray-400">P/E Ratio</p>
+                          <p className="text-white font-semibold">{stock.peRatio}</p>
+                        </div>
+                        <div className="bg-white/5 rounded-lg p-3">
+                          <p className="text-xs text-gray-400">RSI</p>
+                          <p className={`font-semibold ${getRSIColor(stock.rsi)}`}>
+                            {stock.rsi.toFixed(1)}
+                          </p>
+                        </div>
+                        <div className="bg-white/5 rounded-lg p-3">
+                          <p className="text-xs text-gray-400">Dividend Yield</p>
+                          <p className="text-white font-semibold">{stock.dividendYield}%</p>
+                        </div>
+                      </div>
+
+                      <div className="grid md:grid-cols-3 gap-4 mb-4">
+                        <div className="bg-white/5 rounded-lg p-3">
+                          <p className="text-xs text-gray-400">52W High</p>
+                          <p className="text-white font-semibold">
+                            {formatIndianPrice(stock.fiftyTwoWeekHigh)}
+                          </p>
+                        </div>
+                        <div className="bg-white/5 rounded-lg p-3">
+                          <p className="text-xs text-gray-400">52W Low</p>
+                          <p className="text-white font-semibold">
+                            {formatIndianPrice(stock.fiftyTwoWeekLow)}
+                          </p>
+                        </div>
+                        <div className="bg-white/5 rounded-lg p-3">
+                          <p className="text-xs text-gray-400">Trend</p>
+                          <p className={`font-semibold ${getTrendColor(stock.movingAverages.trend)}`}>
+                            {stock.movingAverages.trend}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mb-4">
+                        <p className="text-sm text-gray-400 mb-2">Technical Signals</p>
+                        <div className="flex flex-wrap gap-2">
+                          {stock.technicalSignals.oversold && (
+                            <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded">
+                              Oversold
+                            </span>
+                          )}
+                          {stock.technicalSignals.overbought && (
+                            <span className="text-xs bg-red-500/20 text-red-400 px-2 py-1 rounded">
+                              Overbought
+                            </span>
+                          )}
+                          {stock.technicalSignals.volumeSpike && (
+                            <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded">
+                              Volume Spike
+                            </span>
+                          )}
+                          {stock.technicalSignals.breakoutCandidate && (
+                            <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded">
+                              Breakout Candidate
+                            </span>
+                          )}
+                          {stock.technicalSignals.nearSupport && (
+                            <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded">
+                              Near Support
+                            </span>
+                          )}
+                          {stock.technicalSignals.nearResistance && (
+                            <span className="text-xs bg-orange-500/20 text-orange-400 px-2 py-1 rounded">
+                              Near Resistance
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <p className="text-sm text-gray-400 mb-2">Analysis</p>
+                        <div className="space-y-1">
+                          {stock.reasoning.map((reason, idx) => (
+                            <div key={idx} className="text-sm text-gray-300 flex items-start">
+                              <span className="text-orange-400 mr-2">•</span>
+                              {reason}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-6 text-center text-xs text-gray-400">
+                  Results generated on {new Date(indianStockResults.timestamp).toLocaleString()}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Financial Data Display */}
         {financialData && (
           <div className="max-w-4xl mx-auto mb-12">
@@ -1545,7 +1931,7 @@ export default function Home() {
         )}
 
         {/* Features Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
+        <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-8 mb-12">
           <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
             <div className="flex items-center space-x-3 mb-4">
               <TrendingUp className="h-8 w-8 text-emerald-400" />
@@ -1587,6 +1973,19 @@ export default function Home() {
             <p className="text-gray-300">
               GPT-4 powered investment recommendations for weekly €200 strategies. Get personalized
               stock picks with detailed reasoning, risk assessment, and alternative options.
+            </p>
+          </div>
+
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="h-8 w-8 bg-gradient-to-r from-orange-400 to-red-500 rounded-full flex items-center justify-center">
+                <span className="text-white text-sm font-bold">₹</span>
+              </div>
+              <h3 className="text-xl font-semibold text-white">Indian Stocks</h3>
+            </div>
+            <p className="text-gray-300">
+              Comprehensive screening of NSE & BSE listed stocks with technical analysis, 
+              fundamental metrics, sector filtering, and detailed Indian market insights.
             </p>
           </div>
         </div>
