@@ -385,12 +385,85 @@ interface CryptoWhaleResults {
   }>;
 }
 
+interface CoinVolumeData {
+  id: string;
+  symbol: string;
+  name: string;
+  price: number;
+  volume24h: number;
+  volumeChange24h: number;
+  volumeChangePercentage24h: number;
+  marketCap: number;
+  priceChange24h: number;
+  priceChangePercentage24h: number;
+  rank: number;
+  sustainedVolumeScore: number;
+  volumeTrend: 'increasing' | 'decreasing' | 'stable';
+  historicalVolume: Array<{
+    timestamp: string;
+    volume: number;
+    price: number;
+  }>;
+}
+
+interface WalletActivity {
+  address: string;
+  totalVolume: number;
+  totalVolumeUSD: number;
+  transactionCount: number;
+  averageTransactionSize: number;
+  firstTransaction: string;
+  lastTransaction: string;
+  isWhale: boolean;
+  walletType: 'individual' | 'exchange' | 'institutional' | 'unknown';
+  activityPattern: 'accumulating' | 'distributing' | 'trading' | 'mixed';
+}
+
+interface VolumeAnalysis {
+  totalUniqueWallets: number;
+  whaleWallets: number;
+  retailWallets: number;
+  exchangeVolume: number;
+  retailVolume: number;
+  whaleVolume: number;
+  dominantPattern: 'whale_accumulation' | 'retail_fomo' | 'institutional_buying' | 'mixed_activity';
+  concentrationRatio: number;
+  newWalletActivity: number;
+  sustainabilityScore: number;
+}
+
+interface TrendAnalysisResult {
+  success: boolean;
+  timestamp: string;
+  topVolumeGainer: CoinVolumeData;
+  topGainers: CoinVolumeData[];
+  walletActivity: WalletActivity[];
+  volumeAnalysis: VolumeAnalysis;
+  insights: Array<{
+    type: 'whale_accumulation' | 'retail_surge' | 'institutional_flow' | 'pump_dump_warning' | 'sustainable_growth';
+    message: string;
+    confidence: number;
+    data: any;
+  }>;
+  recommendations: Array<{
+    action: 'monitor' | 'investigate' | 'alert' | 'opportunity';
+    reason: string;
+    priority: 'low' | 'medium' | 'high';
+  }>;
+  dataSource: {
+    primary: 'coinmarketcap' | 'coingecko' | 'binance';
+    volumeDataType: 'real' | 'calculated' | 'estimated';
+    confidence: number;
+    lastUpdated: string;
+  };
+}
+
 export default function Home() {
   const [symbol, setSymbol] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [financialData, setFinancialData] = useState<FinancialData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'analyze' | 'screen' | 'accumulation' | 'ai-analysis' | 'indian-stocks' | 'crypto-whales'>('analyze');
+  const [activeTab, setActiveTab] = useState<'analyze' | 'screen' | 'accumulation' | 'ai-analysis' | 'indian-stocks' | 'crypto-whales' | 'volume-trends'>('analyze');
   const [isScreening, setIsScreening] = useState(false);
   const [screeningResults, setScreeningResults] = useState<ScreeningResults | null>(null);
   const [minScore, setMinScore] = useState(50);
@@ -416,6 +489,10 @@ export default function Home() {
   const [selectedChain, setSelectedChain] = useState<string>('all');
   const [minWhaleValue, setMinWhaleValue] = useState<number>(100000);
   const [whaleLimit, setWhaleLimit] = useState<number>(50);
+  const [isAnalyzingVolume, setIsAnalyzingVolume] = useState(false);
+  const [volumeTrendResults, setVolumeTrendResults] = useState<TrendAnalysisResult | null>(null);
+  const [minVolumeIncrease, setMinVolumeIncrease] = useState<number>(50);
+  const [volumeAnalysisLimit, setVolumeAnalysisLimit] = useState<number>(200);
 
   const handleAnalyze = async () => {
     if (!symbol.trim()) return;
@@ -572,6 +649,32 @@ export default function Home() {
       setError(err instanceof Error ? err.message : 'An error occurred during crypto whale tracking');
     } finally {
       setIsCryptoWhaleTracking(false);
+    }
+  };
+
+  const handleVolumeTrendAnalysis = async () => {
+    setIsAnalyzingVolume(true);
+    setError(null);
+    setVolumeTrendResults(null);
+    
+    try {
+      const params = new URLSearchParams({
+        limit: volumeAnalysisLimit.toString(),
+        minVolumeIncrease: minVolumeIncrease.toString(),
+      });
+      
+      const response = await fetch(`/api/volume-trend-analyzer?${params}`);
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to analyze volume trends');
+      }
+      
+      setVolumeTrendResults(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred during volume trend analysis');
+    } finally {
+      setIsAnalyzingVolume(false);
     }
   };
 
@@ -732,6 +835,16 @@ export default function Home() {
               }`}
             >
               Crypto Whales
+            </button>
+            <button
+              onClick={() => setActiveTab('volume-trends')}
+              className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+                activeTab === 'volume-trends'
+                  ? 'bg-orange-500 text-white shadow-lg'
+                  : 'text-gray-300 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              Volume Trends
             </button>
           </div>
         </div>
@@ -2326,6 +2439,311 @@ export default function Home() {
 
                 <div className="mt-6 text-center text-xs text-gray-400">
                   Data updated: {new Date(cryptoWhaleResults.timestamp).toLocaleString()}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Volume Trends Tab */}
+        {activeTab === 'volume-trends' && (
+          <div className="max-w-6xl mx-auto mb-12">
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20">
+              <div className="flex items-center space-x-4 mb-6">
+                <TrendingUp className="h-6 w-6 text-orange-400" />
+                <h3 className="text-xl font-semibold text-white">Crypto Volume Trend Analyzer</h3>
+                <div className="text-sm text-gray-400">Find coins with the most increased sustained volume</div>
+              </div>
+              
+              <div className="grid md:grid-cols-2 gap-6 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Minimum Volume Increase (%)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="1000"
+                    value={minVolumeIncrease}
+                    onChange={(e) => setMinVolumeIncrease(parseInt(e.target.value))}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Analysis Limit
+                  </label>
+                  <input
+                    type="number"
+                    min="50"
+                    max="500"
+                    value={volumeAnalysisLimit}
+                    onChange={(e) => setVolumeAnalysisLimit(parseInt(e.target.value))}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent"
+                  />
+                </div>
+              </div>
+              
+              <button
+                onClick={handleVolumeTrendAnalysis}
+                disabled={isAnalyzingVolume}
+                className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 disabled:from-gray-600 disabled:to-gray-600 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 disabled:cursor-not-allowed"
+              >
+                {isAnalyzingVolume ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                    <span>Analyzing Volume Trends...</span>
+                  </div>
+                ) : (
+                  'Analyze Volume Trends'
+                )}
+              </button>
+            </div>
+
+            {/* Volume Trend Results */}
+            {volumeTrendResults && (
+              <div className="mt-8 space-y-6">
+                {/* Top Volume Gainer */}
+                <div className="bg-gradient-to-r from-orange-500/20 to-red-500/20 backdrop-blur-md rounded-2xl p-6 border border-orange-500/30">
+                  <h4 className="text-xl font-bold text-white mb-4 flex items-center">
+                    <TrendingUp className="h-6 w-6 text-orange-400 mr-2" />
+                    Top Volume Gainer: {volumeTrendResults.topVolumeGainer.symbol}
+                  </h4>
+                  
+                  <div className="grid md:grid-cols-4 gap-4 mb-6">
+                    <div className="bg-white/10 rounded-xl p-4">
+                      <h5 className="text-sm font-medium text-gray-300 mb-2">Current Price</h5>
+                      <p className="text-2xl font-bold text-white">${volumeTrendResults.topVolumeGainer.price.toFixed(4)}</p>
+                      <p className={`text-sm font-medium ${volumeTrendResults.topVolumeGainer.priceChangePercentage24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {formatPercentage(volumeTrendResults.topVolumeGainer.priceChangePercentage24h)}
+                      </p>
+                    </div>
+                    
+                    <div className="bg-white/10 rounded-xl p-4">
+                      <h5 className="text-sm font-medium text-gray-300 mb-2">24h Volume</h5>
+                      <p className="text-2xl font-bold text-white">${(volumeTrendResults.topVolumeGainer.volume24h / 1000000).toFixed(1)}M</p>
+                      <p className="text-sm font-medium text-orange-400">
+                        +{volumeTrendResults.topVolumeGainer.volumeChangePercentage24h.toFixed(1)}%
+                      </p>
+                    </div>
+                    
+                    <div className="bg-white/10 rounded-xl p-4">
+                      <h5 className="text-sm font-medium text-gray-300 mb-2">Market Cap</h5>
+                      <p className="text-2xl font-bold text-white">${(volumeTrendResults.topVolumeGainer.marketCap / 1000000000).toFixed(1)}B</p>
+                      <p className="text-sm font-medium text-gray-400">Rank #{volumeTrendResults.topVolumeGainer.rank}</p>
+                    </div>
+                    
+                    <div className="bg-white/10 rounded-xl p-4">
+                      <h5 className="text-sm font-medium text-gray-300 mb-2">Volume Score</h5>
+                      <p className="text-2xl font-bold text-orange-400">{volumeTrendResults.topVolumeGainer.sustainedVolumeScore}/100</p>
+                      <p className="text-sm font-medium text-gray-400">
+                        {volumeTrendResults.topVolumeGainer.volumeTrend === 'increasing' ? '📈 Rising' : 
+                         volumeTrendResults.topVolumeGainer.volumeTrend === 'decreasing' ? '📉 Falling' : '➡️ Stable'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Volume Analysis */}
+                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                  <h4 className="text-xl font-bold text-white mb-4">Volume Analysis</h4>
+                  
+                  <div className="grid md:grid-cols-3 gap-6 mb-6">
+                    <div className="bg-white/5 rounded-xl p-4">
+                      <h5 className="text-sm font-medium text-gray-300 mb-2">Dominant Pattern</h5>
+                      <p className="text-lg font-bold text-white capitalize">
+                        {volumeTrendResults.volumeAnalysis.dominantPattern.replace('_', ' ')}
+                      </p>
+                      <p className="text-sm text-gray-400">
+                        {volumeTrendResults.volumeAnalysis.whaleWallets} whales, {volumeTrendResults.volumeAnalysis.retailWallets} retail
+                      </p>
+                    </div>
+                    
+                    <div className="bg-white/5 rounded-xl p-4">
+                      <h5 className="text-sm font-medium text-gray-300 mb-2">Concentration Ratio</h5>
+                      <p className="text-lg font-bold text-white">{volumeTrendResults.volumeAnalysis.concentrationRatio.toFixed(1)}%</p>
+                      <p className="text-sm text-gray-400">Top 10 wallets volume</p>
+                    </div>
+                    
+                    <div className="bg-white/5 rounded-xl p-4">
+                      <h5 className="text-sm font-medium text-gray-300 mb-2">Sustainability Score</h5>
+                      <p className="text-lg font-bold text-white">{volumeTrendResults.volumeAnalysis.sustainabilityScore}/100</p>
+                      <p className="text-sm text-gray-400">
+                        {volumeTrendResults.volumeAnalysis.newWalletActivity.toFixed(1)}% new wallets
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Volume Distribution */}
+                  <div className="bg-white/5 rounded-xl p-4">
+                    <h5 className="text-sm font-medium text-gray-300 mb-4">Volume Distribution</h5>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-white">Whale Volume</span>
+                        <div className="flex items-center space-x-2">
+                          <div className="w-32 bg-white/20 rounded-full h-2">
+                            <div 
+                              className="bg-red-400 h-2 rounded-full" 
+                              style={{ width: `${(volumeTrendResults.volumeAnalysis.whaleVolume / (volumeTrendResults.volumeAnalysis.whaleVolume + volumeTrendResults.volumeAnalysis.retailVolume + volumeTrendResults.volumeAnalysis.exchangeVolume)) * 100}%` }}
+                            ></div>
+                          </div>
+                          <span className="text-white font-semibold">${(volumeTrendResults.volumeAnalysis.whaleVolume / 1000000).toFixed(1)}M</span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex justify-between items-center">
+                        <span className="text-white">Exchange Volume</span>
+                        <div className="flex items-center space-x-2">
+                          <div className="w-32 bg-white/20 rounded-full h-2">
+                            <div 
+                              className="bg-blue-400 h-2 rounded-full" 
+                              style={{ width: `${(volumeTrendResults.volumeAnalysis.exchangeVolume / (volumeTrendResults.volumeAnalysis.whaleVolume + volumeTrendResults.volumeAnalysis.retailVolume + volumeTrendResults.volumeAnalysis.exchangeVolume)) * 100}%` }}
+                            ></div>
+                          </div>
+                          <span className="text-white font-semibold">${(volumeTrendResults.volumeAnalysis.exchangeVolume / 1000000).toFixed(1)}M</span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex justify-between items-center">
+                        <span className="text-white">Retail Volume</span>
+                        <div className="flex items-center space-x-2">
+                          <div className="w-32 bg-white/20 rounded-full h-2">
+                            <div 
+                              className="bg-green-400 h-2 rounded-full" 
+                              style={{ width: `${(volumeTrendResults.volumeAnalysis.retailVolume / (volumeTrendResults.volumeAnalysis.whaleVolume + volumeTrendResults.volumeAnalysis.retailVolume + volumeTrendResults.volumeAnalysis.exchangeVolume)) * 100}%` }}
+                            ></div>
+                          </div>
+                          <span className="text-white font-semibold">${(volumeTrendResults.volumeAnalysis.retailVolume / 1000000).toFixed(1)}M</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Insights */}
+                {volumeTrendResults.insights.length > 0 && (
+                  <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                    <h4 className="text-xl font-bold text-white mb-4">AI Insights</h4>
+                    <div className="space-y-4">
+                      {volumeTrendResults.insights.map((insight, index) => (
+                        <div key={index} className="bg-white/5 rounded-xl p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                              insight.type === 'whale_accumulation' ? 'bg-red-500/20 text-red-400' :
+                              insight.type === 'retail_surge' ? 'bg-green-500/20 text-green-400' :
+                              insight.type === 'institutional_flow' ? 'bg-blue-500/20 text-blue-400' :
+                              insight.type === 'pump_dump_warning' ? 'bg-yellow-500/20 text-yellow-400' :
+                              'bg-emerald-500/20 text-emerald-400'
+                            }`}>
+                              {insight.type.replace('_', ' ').toUpperCase()}
+                            </span>
+                            <span className="text-sm text-gray-400">{insight.confidence}% confidence</span>
+                          </div>
+                          <p className="text-white">{insight.message}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Top Wallet Activity */}
+                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                  <h4 className="text-xl font-bold text-white mb-4">Top Wallet Activity</h4>
+                  <div className="space-y-3">
+                    {volumeTrendResults.walletActivity.slice(0, 5).map((wallet, index) => (
+                      <div key={index} className="bg-white/5 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center space-x-3">
+                            <span className="text-white font-mono text-sm">
+                              {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}
+                            </span>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              wallet.walletType === 'exchange' ? 'bg-blue-500/20 text-blue-400' :
+                              wallet.walletType === 'institutional' ? 'bg-purple-500/20 text-purple-400' :
+                              wallet.walletType === 'individual' ? 'bg-green-500/20 text-green-400' :
+                              'bg-gray-500/20 text-gray-400'
+                            }`}>
+                              {wallet.walletType}
+                            </span>
+                            {wallet.isWhale && (
+                              <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded-full text-xs font-medium">
+                                🐋 WHALE
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-white font-semibold">${(wallet.totalVolumeUSD / 1000000).toFixed(1)}M</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <span className="text-gray-400">Transactions:</span>
+                            <span className="text-white ml-2">{wallet.transactionCount}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-400">Avg Size:</span>
+                            <span className="text-white ml-2">${(wallet.averageTransactionSize / 1000).toFixed(1)}K</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-400">Pattern:</span>
+                            <span className="text-white ml-2 capitalize">{wallet.activityPattern}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Recommendations */}
+                {volumeTrendResults.recommendations.length > 0 && (
+                  <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                    <h4 className="text-xl font-bold text-white mb-4">Recommendations</h4>
+                    <div className="space-y-3">
+                      {volumeTrendResults.recommendations.map((rec, index) => (
+                        <div key={index} className="bg-white/5 rounded-xl p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                              rec.action === 'alert' ? 'bg-red-500/20 text-red-400' :
+                              rec.action === 'opportunity' ? 'bg-green-500/20 text-green-400' :
+                              rec.action === 'investigate' ? 'bg-yellow-500/20 text-yellow-400' :
+                              'bg-blue-500/20 text-blue-400'
+                            }`}>
+                              {rec.action.toUpperCase()}
+                            </span>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              rec.priority === 'high' ? 'bg-red-500/20 text-red-400' :
+                              rec.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                              'bg-green-500/20 text-green-400'
+                            }`}>
+                              {rec.priority.toUpperCase()}
+                            </span>
+                          </div>
+                          <p className="text-white">{rec.reason}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-6 text-center">
+                  <div className="flex items-center justify-center space-x-4 mb-2">
+                    <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      volumeTrendResults.dataSource.volumeDataType === 'real' ? 'bg-green-500/20 text-green-400' :
+                      volumeTrendResults.dataSource.volumeDataType === 'calculated' ? 'bg-blue-500/20 text-blue-400' :
+                      'bg-yellow-500/20 text-yellow-400'
+                    }`}>
+                      {volumeTrendResults.dataSource.volumeDataType === 'real' ? '✅ REAL DATA' :
+                       volumeTrendResults.dataSource.volumeDataType === 'calculated' ? '🔄 CALCULATED DATA' :
+                       '⚠️ ESTIMATED DATA'}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      Source: {volumeTrendResults.dataSource.primary.toUpperCase()}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      Confidence: {volumeTrendResults.dataSource.confidence}%
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    Analysis completed: {new Date(volumeTrendResults.timestamp).toLocaleString()}
+                  </div>
                 </div>
               </div>
             )}
