@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { TrendingUp, TrendingDown, Search, BarChart3, DollarSign, Bitcoin, AlertCircle } from 'lucide-react';
+import { TrendingUp, TrendingDown, Search, BarChart3, DollarSign, Bitcoin, AlertCircle, Brain } from 'lucide-react';
 
 interface FinancialData {
   symbol: string;
@@ -173,12 +173,48 @@ interface AccumulationResults {
   timestamp: string;
 }
 
+interface InvestmentRecommendation {
+  recommendedStock: {
+    symbol: string;
+    name: string;
+    currentPrice: number;
+    accumulationScore: number;
+  };
+  investmentStrategy: {
+    weeklyAmount: number;
+    sharesPerWeek: number;
+    totalShares: number;
+    timeHorizon: string;
+    riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+  };
+  reasoning: {
+    whyThisStock: string[];
+    marketAnalysis: string[];
+    riskAssessment: string[];
+    timeframePrediction: string[];
+  };
+  alternatives: {
+    symbol: string;
+    name: string;
+    reason: string;
+  }[];
+  confidence: number;
+  lastUpdated: string;
+}
+
+interface AIAnalysisResult {
+  success: boolean;
+  recommendation: InvestmentRecommendation;
+  analysisDate: string;
+  stocksAnalyzed: number;
+}
+
 export default function Home() {
   const [symbol, setSymbol] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [financialData, setFinancialData] = useState<FinancialData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'analyze' | 'screen' | 'accumulation'>('analyze');
+  const [activeTab, setActiveTab] = useState<'analyze' | 'screen' | 'accumulation' | 'ai-analysis'>('analyze');
   const [isScreening, setIsScreening] = useState(false);
   const [screeningResults, setScreeningResults] = useState<ScreeningResults | null>(null);
   const [minScore, setMinScore] = useState(50);
@@ -189,6 +225,8 @@ export default function Home() {
   const [accumulationMaxResults, setAccumulationMaxResults] = useState(100);
   const [includeETFs, setIncludeETFs] = useState(true);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [isAIAnalyzing, setIsAIAnalyzing] = useState(false);
+  const [aiAnalysisResult, setAIAnalysisResult] = useState<AIAnalysisResult | null>(null);
 
   const handleAnalyze = async () => {
     if (!symbol.trim()) return;
@@ -252,6 +290,41 @@ export default function Home() {
       setError(err instanceof Error ? err.message : 'An error occurred during accumulation scanning');
     } finally {
       setIsAccumulationScanning(false);
+    }
+  };
+
+  const handleAIAnalysis = async () => {
+    if (!accumulationResults || !accumulationResults.stocks.length) {
+      setError('Please run accumulation scan first to get AI investment recommendations');
+      return;
+    }
+
+    setIsAIAnalyzing(true);
+    setError(null);
+    setAIAnalysisResult(null);
+    
+    try {
+      const response = await fetch('/api/ai-investment-analysis', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          stocks: accumulationResults.stocks
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate AI investment analysis');
+      }
+      
+      setAIAnalysisResult(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred during AI analysis');
+    } finally {
+      setIsAIAnalyzing(false);
     }
   };
 
@@ -373,6 +446,16 @@ export default function Home() {
               }`}
             >
               Accumulation Scanner
+            </button>
+            <button
+              onClick={() => setActiveTab('ai-analysis')}
+              className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+                activeTab === 'ai-analysis'
+                  ? 'bg-emerald-500 text-white shadow-lg'
+                  : 'text-gray-300 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              AI Investment Advisor
             </button>
           </div>
         </div>
@@ -569,6 +652,59 @@ export default function Home() {
                   'Scan for Accumulation'
                 )}
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* AI Investment Analysis Tab */}
+        {activeTab === 'ai-analysis' && (
+          <div className="max-w-4xl mx-auto mb-12">
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20">
+              <div className="flex items-center space-x-4 mb-6">
+                <Brain className="h-6 w-6 text-orange-400" />
+                <h3 className="text-xl font-semibold text-white">AI Investment Advisor</h3>
+                <div className="text-sm text-gray-400">GPT-4 powered weekly €200 investment strategy</div>
+              </div>
+              
+              <div className="mb-6">
+                <div className="bg-gradient-to-r from-orange-500/10 to-red-500/10 rounded-xl p-4 border border-orange-500/20">
+                  <div className="flex items-center space-x-3 mb-2">
+                    <Brain className="h-5 w-5 text-orange-400" />
+                    <span className="text-orange-400 font-semibold">How it works:</span>
+                  </div>
+                  <ol className="text-sm text-gray-300 space-y-1 ml-8">
+                    <li>1. First, run the <strong>Accumulation Scanner</strong> to find stocks with smart money patterns</li>
+                    <li>2. Our AI analyzes the top accumulation candidates using advanced market intelligence</li>
+                    <li>3. Get personalized recommendations for your weekly €200 investment strategy</li>
+                    <li>4. Receive detailed reasoning, risk assessment, and alternative options</li>
+                  </ol>
+                </div>
+              </div>
+              
+              <button
+                onClick={handleAIAnalysis}
+                disabled={isAIAnalyzing || !accumulationResults?.stocks.length}
+                className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 disabled:from-gray-600 disabled:to-gray-600 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 disabled:cursor-not-allowed"
+              >
+                {isAIAnalyzing ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                    <span>AI is analyzing accumulation data...</span>
+                  </div>
+                ) : !accumulationResults?.stocks.length ? (
+                  'Run Accumulation Scanner First'
+                ) : (
+                  'Get AI Investment Recommendation'
+                )}
+              </button>
+              
+              {!accumulationResults?.stocks.length && (
+                <div className="mt-4 text-center">
+                  <p className="text-gray-400 text-sm">
+                    Switch to the <strong>Accumulation Scanner</strong> tab to find stocks with smart money patterns first.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1167,6 +1303,149 @@ export default function Home() {
           </div>
         )}
 
+        {/* AI Investment Analysis Results */}
+        {aiAnalysisResult && (
+          <div className="max-w-6xl mx-auto mb-12">
+            <div className="bg-gradient-to-r from-orange-500/10 to-red-500/10 rounded-2xl p-8 border border-orange-500/20">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-white">AI Investment Recommendation</h3>
+                <div className="text-right">
+                  <div className="text-sm text-gray-400">
+                    Analyzed {aiAnalysisResult.stocksAnalyzed} accumulation candidates
+                  </div>
+                  <div className="text-lg font-semibold text-orange-400">
+                    Confidence: {aiAnalysisResult.recommendation.confidence}%
+                  </div>
+                </div>
+              </div>
+
+              {/* Recommended Stock */}
+              <div className="bg-white/10 rounded-xl p-6 mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h4 className="text-2xl font-bold text-white">
+                      {aiAnalysisResult.recommendation.recommendedStock.symbol}
+                    </h4>
+                    <p className="text-gray-300">{aiAnalysisResult.recommendation.recommendedStock.name}</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-3xl font-bold text-white">
+                      €{aiAnalysisResult.recommendation.recommendedStock.currentPrice.toFixed(2)}
+                    </div>
+                    <div className="text-sm text-purple-400">
+                      Score: {aiAnalysisResult.recommendation.recommendedStock.accumulationScore}/100
+                    </div>
+                  </div>
+                </div>
+
+                {/* Investment Strategy */}
+                <div className="grid md:grid-cols-4 gap-4 mb-6">
+                  <div className="bg-white/5 rounded-lg p-4">
+                    <div className="text-xs text-gray-400 mb-1">Weekly Investment</div>
+                    <div className="text-lg font-bold text-green-400">
+                      €{aiAnalysisResult.recommendation.investmentStrategy.weeklyAmount}
+                    </div>
+                  </div>
+                  <div className="bg-white/5 rounded-lg p-4">
+                    <div className="text-xs text-gray-400 mb-1">Shares per Week</div>
+                    <div className="text-lg font-bold text-blue-400">
+                      {aiAnalysisResult.recommendation.investmentStrategy.sharesPerWeek.toFixed(2)}
+                    </div>
+                  </div>
+                  <div className="bg-white/5 rounded-lg p-4">
+                    <div className="text-xs text-gray-400 mb-1">Time Horizon</div>
+                    <div className="text-lg font-bold text-yellow-400">
+                      {aiAnalysisResult.recommendation.investmentStrategy.timeHorizon}
+                    </div>
+                  </div>
+                  <div className="bg-white/5 rounded-lg p-4">
+                    <div className="text-xs text-gray-400 mb-1">Risk Level</div>
+                    <div className={`text-lg font-bold ${
+                      aiAnalysisResult.recommendation.investmentStrategy.riskLevel === 'LOW' ? 'text-green-400' :
+                      aiAnalysisResult.recommendation.investmentStrategy.riskLevel === 'MEDIUM' ? 'text-yellow-400' : 'text-red-400'
+                    }`}>
+                      {aiAnalysisResult.recommendation.investmentStrategy.riskLevel}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Reasoning Sections */}
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="bg-green-500/10 rounded-lg p-4 border border-green-500/20">
+                    <h5 className="text-lg font-semibold text-green-400 mb-3">Why This Stock</h5>
+                    <div className="space-y-2">
+                      {aiAnalysisResult.recommendation.reasoning.whyThisStock.map((reason, idx) => (
+                        <div key={idx} className="text-sm text-gray-300 flex items-start">
+                          <span className="text-green-400 mr-2">•</span>
+                          {reason}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-500/10 rounded-lg p-4 border border-blue-500/20">
+                    <h5 className="text-lg font-semibold text-blue-400 mb-3">Market Analysis</h5>
+                    <div className="space-y-2">
+                      {aiAnalysisResult.recommendation.reasoning.marketAnalysis.map((analysis, idx) => (
+                        <div key={idx} className="text-sm text-gray-300 flex items-start">
+                          <span className="text-blue-400 mr-2">•</span>
+                          {analysis}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="bg-red-500/10 rounded-lg p-4 border border-red-500/20">
+                    <h5 className="text-lg font-semibold text-red-400 mb-3">Risk Assessment</h5>
+                    <div className="space-y-2">
+                      {aiAnalysisResult.recommendation.reasoning.riskAssessment.map((risk, idx) => (
+                        <div key={idx} className="text-sm text-gray-300 flex items-start">
+                          <span className="text-red-400 mr-2">⚠</span>
+                          {risk}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="bg-purple-500/10 rounded-lg p-4 border border-purple-500/20">
+                    <h5 className="text-lg font-semibold text-purple-400 mb-3">Timeframe Predictions</h5>
+                    <div className="space-y-2">
+                      {aiAnalysisResult.recommendation.reasoning.timeframePrediction.map((prediction, idx) => (
+                        <div key={idx} className="text-sm text-gray-300 flex items-start">
+                          <span className="text-purple-400 mr-2">📈</span>
+                          {prediction}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Alternative Options */}
+              {aiAnalysisResult.recommendation.alternatives.length > 0 && (
+                <div className="bg-white/5 rounded-xl p-6">
+                  <h5 className="text-lg font-semibold text-white mb-4">Alternative Investment Options</h5>
+                  <div className="space-y-3">
+                    {aiAnalysisResult.recommendation.alternatives.map((alt, idx) => (
+                      <div key={idx} className="bg-white/5 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <h6 className="text-lg font-bold text-white">{alt.symbol}</h6>
+                          <span className="text-sm text-gray-400">{alt.name}</span>
+                        </div>
+                        <p className="text-sm text-gray-300">{alt.reason}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-6 text-center text-xs text-gray-400">
+                Analysis generated on {new Date(aiAnalysisResult.recommendation.lastUpdated).toLocaleString()}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Financial Data Display */}
         {financialData && (
           <div className="max-w-4xl mx-auto mb-12">
@@ -1266,7 +1545,7 @@ export default function Home() {
         )}
 
         {/* Features Grid */}
-        <div className="grid md:grid-cols-3 gap-8 mb-12">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
           <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
             <div className="flex items-center space-x-3 mb-4">
               <TrendingUp className="h-8 w-8 text-emerald-400" />
@@ -1297,6 +1576,17 @@ export default function Home() {
             <p className="text-gray-300">
               Detect smart money accumulation patterns using OBV, A/D Line, Wyckoff methodology,
               and volume profile analysis to find stocks being accumulated at lower prices.
+            </p>
+          </div>
+
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+            <div className="flex items-center space-x-3 mb-4">
+              <Brain className="h-8 w-8 text-orange-400" />
+              <h3 className="text-xl font-semibold text-white">AI Investment Advisor</h3>
+            </div>
+            <p className="text-gray-300">
+              GPT-4 powered investment recommendations for weekly €200 strategies. Get personalized
+              stock picks with detailed reasoning, risk assessment, and alternative options.
             </p>
           </div>
         </div>

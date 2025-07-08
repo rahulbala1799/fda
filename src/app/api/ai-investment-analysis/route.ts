@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { getOpenAIApiKey } from './config';
 
 interface AccumulationStock {
   symbol: string;
@@ -78,6 +75,20 @@ interface InvestmentRecommendation {
 
 export async function POST(request: NextRequest) {
   try {
+    const apiKey = getOpenAIApiKey();
+    console.log('API Key loaded:', !!apiKey);
+    
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: 'OpenAI API key not configured' },
+        { status: 500 }
+      );
+    }
+
+    const openai = new OpenAI({
+      apiKey: apiKey,
+    });
+
     const { stocks } = await request.json();
     
     if (!stocks || !Array.isArray(stocks) || stocks.length === 0) {
@@ -227,6 +238,7 @@ Provide only the JSON response, no additional text.`;
     });
 
     const aiResponse = completion.choices[0].message.content;
+    console.log('Raw AI Response:', aiResponse);
     
     if (!aiResponse) {
       throw new Error('No response from AI');
@@ -235,9 +247,19 @@ Provide only the JSON response, no additional text.`;
     // Parse the JSON response
     let recommendation: InvestmentRecommendation;
     try {
-      recommendation = JSON.parse(aiResponse);
+      // Try to extract JSON from the response if it's wrapped in text
+      let jsonStr = aiResponse;
+      const jsonStart = aiResponse.indexOf('{');
+      const jsonEnd = aiResponse.lastIndexOf('}');
+      
+      if (jsonStart !== -1 && jsonEnd !== -1) {
+        jsonStr = aiResponse.substring(jsonStart, jsonEnd + 1);
+      }
+      
+      recommendation = JSON.parse(jsonStr);
     } catch (parseError) {
       console.error('Failed to parse AI response:', aiResponse);
+      console.error('Parse error:', parseError);
       throw new Error('Invalid AI response format');
     }
 
