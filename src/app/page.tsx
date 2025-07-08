@@ -25,6 +25,38 @@ interface FinancialData {
   }>;
 }
 
+interface FibonacciLevels {
+  support: {
+    level_236: number;
+    level_382: number;
+    level_500: number;
+    level_618: number;
+    level_786: number;
+  };
+  resistance: {
+    level_236: number;
+    level_382: number;
+    level_500: number;
+    level_618: number;
+    level_786: number;
+  };
+  swingHigh: number;
+  swingLow: number;
+}
+
+interface TradingRecommendation {
+  action: 'BUY' | 'SELL' | 'HOLD';
+  entryPrice: number;
+  stopLoss: number;
+  takeProfit1: number;
+  takeProfit2: number;
+  riskRewardRatio: number;
+  maxHoldingDays: number;
+  confidence: 'LOW' | 'MEDIUM' | 'HIGH';
+  strategy: string;
+  reasoning: string[];
+}
+
 interface ScreenedStock {
   symbol: string;
   name: string;
@@ -50,6 +82,8 @@ interface ScreenedStock {
     overbought: boolean;
     breakoutCandidate: boolean;
   };
+  fibonacci: FibonacciLevels;
+  tradingRecommendation: TradingRecommendation;
   score: number;
   reasoning: string[];
 }
@@ -152,6 +186,22 @@ export default function Home() {
       case 'Bullish': return 'text-green-400';
       case 'Bearish': return 'text-red-400';
       default: return 'text-yellow-400';
+    }
+  };
+
+  const getActionColor = (action: string) => {
+    switch (action) {
+      case 'BUY': return 'text-green-400 bg-green-500/20';
+      case 'SELL': return 'text-red-400 bg-red-500/20';
+      default: return 'text-yellow-400 bg-yellow-500/20';
+    }
+  };
+
+  const getConfidenceColor = (confidence: string) => {
+    switch (confidence) {
+      case 'HIGH': return 'text-green-400';
+      case 'MEDIUM': return 'text-yellow-400';
+      default: return 'text-red-400';
     }
   };
 
@@ -384,6 +434,48 @@ export default function Home() {
                         </div>
                       </div>
 
+                      {/* Trading Recommendation */}
+                      <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl p-4 mb-4 border border-blue-500/20">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center space-x-3">
+                            <span className={`px-3 py-1 rounded-full text-sm font-bold ${getActionColor(stock.tradingRecommendation.action)}`}>
+                              {stock.tradingRecommendation.action}
+                            </span>
+                            <span className="text-sm text-gray-400">{stock.tradingRecommendation.strategy}</span>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xs text-gray-400">Confidence</div>
+                            <div className={`text-sm font-bold ${getConfidenceColor(stock.tradingRecommendation.confidence)}`}>
+                              {stock.tradingRecommendation.confidence}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                          <div>
+                            <div className="text-xs text-gray-400 mb-1">Entry Price</div>
+                            <div className="text-white font-semibold">{formatPrice(stock.tradingRecommendation.entryPrice)}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-400 mb-1">Stop Loss</div>
+                            <div className="text-red-400 font-semibold">{formatPrice(stock.tradingRecommendation.stopLoss)}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-400 mb-1">Take Profit 1</div>
+                            <div className="text-green-400 font-semibold">{formatPrice(stock.tradingRecommendation.takeProfit1)}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-400 mb-1">R:R Ratio</div>
+                            <div className="text-emerald-400 font-semibold">{stock.tradingRecommendation.riskRewardRatio.toFixed(2)}:1</div>
+                          </div>
+                        </div>
+                        
+                        <div className="mt-3 flex items-center justify-between text-xs">
+                          <span className="text-gray-400">Max Hold: {stock.tradingRecommendation.maxHoldingDays} days</span>
+                          <span className="text-gray-400">Target 2: {formatPrice(stock.tradingRecommendation.takeProfit2)}</span>
+                        </div>
+                      </div>
+
                       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                         <div className="bg-white/5 rounded-lg p-3">
                           <div className="text-xs text-gray-400 mb-1">Score</div>
@@ -441,12 +533,84 @@ export default function Home() {
                         </div>
                       </div>
 
+                      {/* Fibonacci Levels */}
+                      <div className="mb-4">
+                        <div className="text-sm text-gray-400 mb-3">Fibonacci Levels</div>
+                        <div className="grid md:grid-cols-2 gap-4">
+                          <div className="bg-red-500/10 rounded-lg p-3 border border-red-500/20">
+                            <div className="text-xs text-red-400 mb-2 font-semibold">Resistance Levels</div>
+                            <div className="space-y-1 text-xs">
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">78.6%:</span>
+                                <span className="text-red-300">{formatPrice(stock.fibonacci.resistance.level_786)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">61.8%:</span>
+                                <span className="text-red-300">{formatPrice(stock.fibonacci.resistance.level_618)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">50.0%:</span>
+                                <span className="text-red-300">{formatPrice(stock.fibonacci.resistance.level_500)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">38.2%:</span>
+                                <span className="text-red-300">{formatPrice(stock.fibonacci.resistance.level_382)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">23.6%:</span>
+                                <span className="text-red-300">{formatPrice(stock.fibonacci.resistance.level_236)}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="bg-green-500/10 rounded-lg p-3 border border-green-500/20">
+                            <div className="text-xs text-green-400 mb-2 font-semibold">Support Levels</div>
+                            <div className="space-y-1 text-xs">
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">23.6%:</span>
+                                <span className="text-green-300">{formatPrice(stock.fibonacci.support.level_236)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">38.2%:</span>
+                                <span className="text-green-300">{formatPrice(stock.fibonacci.support.level_382)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">50.0%:</span>
+                                <span className="text-green-300">{formatPrice(stock.fibonacci.support.level_500)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">61.8%:</span>
+                                <span className="text-green-300">{formatPrice(stock.fibonacci.support.level_618)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">78.6%:</span>
+                                <span className="text-green-300">{formatPrice(stock.fibonacci.support.level_786)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-2 text-xs text-gray-400 text-center">
+                          Range: {formatPrice(stock.fibonacci.swingLow)} - {formatPrice(stock.fibonacci.swingHigh)}
+                        </div>
+                      </div>
+
                       <div>
                         <div className="text-sm text-gray-400 mb-2">Analysis Reasoning</div>
                         <div className="space-y-1">
                           {stock.reasoning.map((reason, idx) => (
                             <div key={idx} className="text-sm text-gray-300 flex items-start">
                               <span className="text-emerald-400 mr-2">•</span>
+                              {reason}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="mt-4">
+                        <div className="text-sm text-gray-400 mb-2">Trading Strategy Reasoning</div>
+                        <div className="space-y-1">
+                          {stock.tradingRecommendation.reasoning.map((reason, idx) => (
+                            <div key={idx} className="text-sm text-blue-300 flex items-start">
+                              <span className="text-blue-400 mr-2">→</span>
                               {reason}
                             </div>
                           ))}

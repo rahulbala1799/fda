@@ -12,6 +12,38 @@ interface ScreeningCriteria {
   };
 }
 
+interface FibonacciLevels {
+  support: {
+    level_236: number;
+    level_382: number;
+    level_500: number;
+    level_618: number;
+    level_786: number;
+  };
+  resistance: {
+    level_236: number;
+    level_382: number;
+    level_500: number;
+    level_618: number;
+    level_786: number;
+  };
+  swingHigh: number;
+  swingLow: number;
+}
+
+interface TradingRecommendation {
+  action: 'BUY' | 'SELL' | 'HOLD';
+  entryPrice: number;
+  stopLoss: number;
+  takeProfit1: number;
+  takeProfit2: number;
+  riskRewardRatio: number;
+  maxHoldingDays: number;
+  confidence: 'LOW' | 'MEDIUM' | 'HIGH';
+  strategy: string;
+  reasoning: string[];
+}
+
 interface ScreenedStock {
   symbol: string;
   name: string;
@@ -37,6 +69,8 @@ interface ScreenedStock {
     overbought: boolean;
     breakoutCandidate: boolean;
   };
+  fibonacci: FibonacciLevels;
+  tradingRecommendation: TradingRecommendation;
   score: number;
   reasoning: string[];
 }
@@ -164,6 +198,21 @@ async function getStockData(symbol: string): Promise<ScreenedStock | null> {
       reasoning.push(`Strong daily momentum (${changePercent.toFixed(1)}%) may continue`);
     }
 
+    // Calculate Fibonacci levels
+    const fibonacci = calculateFibonacciLevels(highs, lows, prices);
+
+    // Generate trading recommendation
+    const tradingRecommendation = generateTradingRecommendation(
+      currentPrice,
+      rsi,
+      volatility,
+      volumeRatio,
+      fibonacci,
+      technicalSignals,
+      priceVsSMA20,
+      priceVsSMA50
+    );
+
     return {
       symbol,
       name: quote.longName || quote.shortName || symbol,
@@ -182,6 +231,8 @@ async function getStockData(symbol: string): Promise<ScreenedStock | null> {
         priceVsSMA50
       },
       technicalSignals,
+      fibonacci,
+      tradingRecommendation,
       score,
       reasoning
     };
@@ -223,6 +274,133 @@ function calculateStandardDeviation(values: number[]): number {
   const squaredDiffs = values.map(val => Math.pow(val - mean, 2));
   const avgSquaredDiff = squaredDiffs.reduce((sum, val) => sum + val, 0) / values.length;
   return Math.sqrt(avgSquaredDiff);
+}
+
+function calculateFibonacciLevels(highs: number[], lows: number[], prices: number[]): FibonacciLevels {
+  // Find swing high and low over the last 20 periods
+  const recentHighs = highs.slice(-20);
+  const recentLows = lows.slice(-20);
+  
+  const swingHigh = Math.max(...recentHighs);
+  const swingLow = Math.min(...recentLows);
+  const range = swingHigh - swingLow;
+  
+  // Calculate Fibonacci retracement levels
+  const fibLevels = [0.236, 0.382, 0.500, 0.618, 0.786];
+  
+  return {
+    support: {
+      level_236: swingHigh - (range * 0.236),
+      level_382: swingHigh - (range * 0.382),
+      level_500: swingHigh - (range * 0.500),
+      level_618: swingHigh - (range * 0.618),
+      level_786: swingHigh - (range * 0.786)
+    },
+    resistance: {
+      level_236: swingLow + (range * 0.236),
+      level_382: swingLow + (range * 0.382),
+      level_500: swingLow + (range * 0.500),
+      level_618: swingLow + (range * 0.618),
+      level_786: swingLow + (range * 0.786)
+    },
+    swingHigh,
+    swingLow
+  };
+}
+
+function generateTradingRecommendation(
+  currentPrice: number,
+  rsi: number,
+  volatility: number,
+  volumeRatio: number,
+  fibonacci: FibonacciLevels,
+  technicalSignals: any,
+  priceVsSMA20: number,
+  priceVsSMA50: number
+): TradingRecommendation {
+  let action: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
+  let entryPrice = currentPrice;
+  let stopLoss = currentPrice;
+  let takeProfit1 = currentPrice;
+  let takeProfit2 = currentPrice;
+  let maxHoldingDays = 5;
+  let confidence: 'LOW' | 'MEDIUM' | 'HIGH' = 'MEDIUM';
+  let strategy = 'Technical Analysis';
+  const reasoning: string[] = [];
+
+  // Determine action based on technical signals
+  if (technicalSignals.oversold && priceVsSMA20 > -10) {
+    action = 'BUY';
+    entryPrice = Math.max(currentPrice * 0.99, fibonacci.support.level_618);
+    stopLoss = Math.min(fibonacci.support.level_786, currentPrice * 0.95);
+    takeProfit1 = Math.min(fibonacci.resistance.level_382, currentPrice * 1.08);
+    takeProfit2 = Math.min(fibonacci.resistance.level_618, currentPrice * 1.15);
+    maxHoldingDays = volatility > 4 ? 3 : 7;
+    strategy = 'Oversold Bounce';
+    reasoning.push('RSI oversold condition with price near Fibonacci support');
+    reasoning.push('Entry near current price with stop below key Fibonacci level');
+  } else if (technicalSignals.overbought && priceVsSMA20 < 10) {
+    action = 'SELL';
+    entryPrice = Math.min(currentPrice * 1.01, fibonacci.resistance.level_618);
+    stopLoss = Math.max(fibonacci.resistance.level_786, currentPrice * 1.05);
+    takeProfit1 = Math.max(fibonacci.support.level_382, currentPrice * 0.92);
+    takeProfit2 = Math.max(fibonacci.support.level_618, currentPrice * 0.85);
+    maxHoldingDays = volatility > 4 ? 3 : 7;
+    strategy = 'Overbought Reversal';
+    reasoning.push('RSI overbought condition with price near Fibonacci resistance');
+    reasoning.push('Short entry with stop above key resistance level');
+  } else if (technicalSignals.breakoutCandidate && volumeRatio > 2) {
+    action = 'BUY';
+    entryPrice = currentPrice * 1.005; // Slight premium for breakout
+    stopLoss = Math.max(fibonacci.support.level_500, currentPrice * 0.96);
+    takeProfit1 = currentPrice * 1.10;
+    takeProfit2 = currentPrice * 1.18;
+    maxHoldingDays = volatility > 5 ? 2 : 5;
+    strategy = 'Volume Breakout';
+    reasoning.push('High volume breakout with increased volatility');
+    reasoning.push('Quick trade targeting 10%+ move within days');
+  } else if (technicalSignals.nearSupport && rsi < 40) {
+    action = 'BUY';
+    entryPrice = Math.max(fibonacci.support.level_618, currentPrice * 0.995);
+    stopLoss = Math.max(fibonacci.support.level_786, currentPrice * 0.94);
+    takeProfit1 = fibonacci.resistance.level_382;
+    takeProfit2 = fibonacci.resistance.level_618;
+    maxHoldingDays = 10;
+    strategy = 'Support Bounce';
+    reasoning.push('Price near key support with RSI showing oversold conditions');
+    reasoning.push('Conservative entry with Fibonacci-based targets');
+  }
+
+  // Calculate risk-reward ratio
+  const risk = Math.abs(entryPrice - stopLoss);
+  const reward = Math.abs(takeProfit1 - entryPrice);
+  const riskRewardRatio = risk > 0 ? reward / risk : 0;
+
+  // Adjust confidence based on multiple factors
+  if (riskRewardRatio > 2 && volumeRatio > 1.5 && Math.abs(priceVsSMA20) < 5) {
+    confidence = 'HIGH';
+  } else if (riskRewardRatio > 1.5 && volumeRatio > 1.2) {
+    confidence = 'MEDIUM';
+  } else {
+    confidence = 'LOW';
+  }
+
+  // Add risk-reward reasoning
+  reasoning.push(`Risk-reward ratio: ${riskRewardRatio.toFixed(2)}:1`);
+  reasoning.push(`Max holding period: ${maxHoldingDays} days based on volatility`);
+
+  return {
+    action,
+    entryPrice,
+    stopLoss,
+    takeProfit1,
+    takeProfit2,
+    riskRewardRatio,
+    maxHoldingDays,
+    confidence,
+    strategy,
+    reasoning
+  };
 }
 
 export async function GET(request: NextRequest) {
