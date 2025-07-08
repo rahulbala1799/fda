@@ -101,16 +101,93 @@ interface ScreeningResults {
   timestamp: string;
 }
 
+interface AccumulationMetrics {
+  onBalanceVolume: {
+    current: number;
+    trend: 'RISING' | 'FALLING' | 'NEUTRAL';
+    divergence: boolean;
+  };
+  accumulationDistribution: {
+    current: number;
+    trend: 'ACCUMULATION' | 'DISTRIBUTION' | 'NEUTRAL';
+    strength: number;
+  };
+  volumePriceTrend: {
+    current: number;
+    trend: 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL';
+  };
+  consolidation: {
+    isConsolidating: boolean;
+    rangeTightness: number;
+    duration: number;
+    supportLevel: number;
+    resistanceLevel: number;
+  };
+  wyckoffPhase: {
+    phase: 'ACCUMULATION' | 'MARKUP' | 'DISTRIBUTION' | 'MARKDOWN' | 'UNKNOWN';
+    confidence: number;
+    characteristics: string[];
+  };
+  volumeProfile: {
+    highVolumeAtLows: boolean;
+    averageVolumeAtLows: number;
+    averageVolumeAtHighs: number;
+    volumeRatio: number;
+  };
+}
+
+interface AccumulationStock {
+  symbol: string;
+  name: string;
+  currentPrice: number;
+  change: number;
+  changePercent: number;
+  volume: number;
+  avgVolume: number;
+  accumulationMetrics: AccumulationMetrics;
+  accumulationScore: number;
+  accumulationSignals: {
+    volumeDivergence: boolean;
+    priceConsolidation: boolean;
+    smartMoneyFlow: boolean;
+    wyckoffAccumulation: boolean;
+    highVolumeAtSupport: boolean;
+  };
+  timeframe: {
+    consolidationStart: string;
+    daysInConsolidation: number;
+  };
+  reasoning: string[];
+}
+
+interface AccumulationResults {
+  success: boolean;
+  totalAnalyzed: number;
+  accumulationCandidates: number;
+  criteria: {
+    minScore: number;
+    limit: number;
+    includeETFs: boolean;
+  };
+  stocks: AccumulationStock[];
+  timestamp: string;
+}
+
 export default function Home() {
   const [symbol, setSymbol] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [financialData, setFinancialData] = useState<FinancialData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'analyze' | 'screen'>('analyze');
+  const [activeTab, setActiveTab] = useState<'analyze' | 'screen' | 'accumulation'>('analyze');
   const [isScreening, setIsScreening] = useState(false);
   const [screeningResults, setScreeningResults] = useState<ScreeningResults | null>(null);
   const [minScore, setMinScore] = useState(50);
   const [maxResults, setMaxResults] = useState(10);
+  const [isAccumulationScanning, setIsAccumulationScanning] = useState(false);
+  const [accumulationResults, setAccumulationResults] = useState<AccumulationResults | null>(null);
+  const [accumulationMinScore, setAccumulationMinScore] = useState(60);
+  const [accumulationMaxResults, setAccumulationMaxResults] = useState(15);
+  const [includeETFs, setIncludeETFs] = useState(true);
 
   const handleAnalyze = async () => {
     if (!symbol.trim()) return;
@@ -153,6 +230,27 @@ export default function Home() {
       setError(err instanceof Error ? err.message : 'An error occurred during screening');
     } finally {
       setIsScreening(false);
+    }
+  };
+
+  const handleAccumulationScan = async () => {
+    setIsAccumulationScanning(true);
+    setError(null);
+    setAccumulationResults(null);
+    
+    try {
+      const response = await fetch(`/api/accumulation-scanner?minScore=${accumulationMinScore}&limit=${accumulationMaxResults}&includeETFs=${includeETFs}`);
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to scan for accumulation patterns');
+      }
+      
+      setAccumulationResults(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred during accumulation scanning');
+    } finally {
+      setIsAccumulationScanning(false);
     }
   };
 
@@ -243,7 +341,7 @@ export default function Home() {
         </div>
 
         {/* Tab Navigation */}
-        <div className="max-w-4xl mx-auto mb-8">
+        <div className="max-w-6xl mx-auto mb-8">
           <div className="flex justify-center space-x-1 bg-white/10 backdrop-blur-md rounded-xl p-1 border border-white/20">
             <button
               onClick={() => setActiveTab('analyze')}
@@ -264,6 +362,16 @@ export default function Home() {
               }`}
             >
               Stock Screener
+            </button>
+            <button
+              onClick={() => setActiveTab('accumulation')}
+              className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+                activeTab === 'accumulation'
+                  ? 'bg-emerald-500 text-white shadow-lg'
+                  : 'text-gray-300 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              Accumulation Scanner
             </button>
           </div>
         </div>
@@ -360,6 +468,77 @@ export default function Home() {
                   </div>
                 ) : (
                   'Screen Stocks'
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Accumulation Scanner Tab */}
+        {activeTab === 'accumulation' && (
+          <div className="max-w-4xl mx-auto mb-12">
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20">
+              <div className="flex items-center space-x-4 mb-6">
+                <Bitcoin className="h-6 w-6 text-purple-400" />
+                <h3 className="text-xl font-semibold text-white">Accumulation Scanner</h3>
+                <div className="text-sm text-gray-400">Find stocks being accumulated at lower prices</div>
+              </div>
+              
+              <div className="grid md:grid-cols-3 gap-6 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Minimum Score (0-100)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={accumulationMinScore}
+                    onChange={(e) => setAccumulationMinScore(parseInt(e.target.value))}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Max Results
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={accumulationMaxResults}
+                    onChange={(e) => setAccumulationMaxResults(parseInt(e.target.value))}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Include ETFs
+                  </label>
+                  <div className="flex items-center space-x-3 mt-3">
+                    <input
+                      type="checkbox"
+                      checked={includeETFs}
+                      onChange={(e) => setIncludeETFs(e.target.checked)}
+                      className="w-5 h-5 text-purple-400 bg-white/10 border-white/20 rounded focus:ring-purple-400"
+                    />
+                    <span className="text-white">Include ETFs in analysis</span>
+                  </div>
+                </div>
+              </div>
+              
+              <button
+                onClick={handleAccumulationScan}
+                disabled={isAccumulationScanning}
+                className="w-full bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 disabled:from-gray-600 disabled:to-gray-600 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 disabled:cursor-not-allowed"
+              >
+                {isAccumulationScanning ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                    <span>Scanning for Accumulation...</span>
+                  </div>
+                ) : (
+                  'Scan for Accumulation'
                 )}
               </button>
             </div>
@@ -624,6 +803,209 @@ export default function Home() {
           </div>
         )}
 
+        {/* Accumulation Results */}
+        {accumulationResults && (
+          <div className="max-w-6xl mx-auto mb-12">
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-white">Accumulation Analysis Results</h3>
+                <div className="text-right">
+                  <div className="text-sm text-gray-400">
+                    Analyzed {accumulationResults.totalAnalyzed} stocks
+                  </div>
+                  <div className="text-lg font-semibold text-purple-400">
+                    {accumulationResults.accumulationCandidates} accumulation candidates
+                  </div>
+                </div>
+              </div>
+
+              {accumulationResults.stocks.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="text-gray-400 text-lg">
+                    No accumulation patterns found. Try lowering the minimum score.
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {accumulationResults.stocks.map((stock, index) => (
+                    <div key={stock.symbol} className="bg-gradient-to-r from-purple-500/10 to-indigo-500/10 rounded-xl p-6 border border-purple-500/20">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center space-x-4">
+                          <div className="bg-purple-500/20 text-purple-400 rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold">
+                            {index + 1}
+                          </div>
+                          <div>
+                            <h4 className="text-xl font-bold text-white">{stock.symbol}</h4>
+                            <p className="text-gray-400 text-sm">{stock.name}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-white">
+                            {formatPrice(stock.currentPrice)}
+                          </div>
+                          <div className={`text-lg font-semibold ${
+                            stock.change >= 0 ? 'text-green-400' : 'text-red-400'
+                          }`}>
+                            {stock.change >= 0 ? (
+                              <TrendingUp className="inline h-4 w-4 mr-1" />
+                            ) : (
+                              <TrendingDown className="inline h-4 w-4 mr-1" />
+                            )}
+                            {formatPercentage(stock.changePercent)}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Accumulation Score and Metrics */}
+                      <div className="grid md:grid-cols-4 gap-4 mb-4">
+                        <div className="bg-white/5 rounded-lg p-3">
+                          <div className="text-xs text-gray-400 mb-1">Accumulation Score</div>
+                          <div className="text-lg font-bold text-purple-400">{stock.accumulationScore}/100</div>
+                        </div>
+                        <div className="bg-white/5 rounded-lg p-3">
+                          <div className="text-xs text-gray-400 mb-1">Consolidation Days</div>
+                          <div className="text-lg font-bold text-indigo-400">{stock.timeframe.daysInConsolidation}</div>
+                        </div>
+                        <div className="bg-white/5 rounded-lg p-3">
+                          <div className="text-xs text-gray-400 mb-1">Volume Ratio</div>
+                          <div className="text-lg font-bold text-cyan-400">{stock.accumulationMetrics.volumeProfile.volumeRatio.toFixed(2)}x</div>
+                        </div>
+                        <div className="bg-white/5 rounded-lg p-3">
+                          <div className="text-xs text-gray-400 mb-1">Wyckoff Phase</div>
+                          <div className={`text-sm font-bold ${
+                            stock.accumulationMetrics.wyckoffPhase.phase === 'ACCUMULATION' ? 'text-green-400' : 'text-yellow-400'
+                          }`}>
+                            {stock.accumulationMetrics.wyckoffPhase.phase}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Accumulation Signals */}
+                      <div className="mb-4">
+                        <div className="text-sm text-gray-400 mb-2">Accumulation Signals</div>
+                        <div className="flex flex-wrap gap-2">
+                          {stock.accumulationSignals.volumeDivergence && (
+                            <span className="px-2 py-1 bg-purple-500/20 text-purple-400 rounded-full text-xs">
+                              Volume Divergence
+                            </span>
+                          )}
+                          {stock.accumulationSignals.priceConsolidation && (
+                            <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded-full text-xs">
+                              Price Consolidation
+                            </span>
+                          )}
+                          {stock.accumulationSignals.smartMoneyFlow && (
+                            <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded-full text-xs">
+                              Smart Money Flow
+                            </span>
+                          )}
+                          {stock.accumulationSignals.wyckoffAccumulation && (
+                            <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded-full text-xs">
+                              Wyckoff Accumulation
+                            </span>
+                          )}
+                          {stock.accumulationSignals.highVolumeAtSupport && (
+                            <span className="px-2 py-1 bg-indigo-500/20 text-indigo-400 rounded-full text-xs">
+                              High Volume at Support
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Technical Metrics */}
+                      <div className="grid md:grid-cols-2 gap-4 mb-4">
+                        <div className="bg-white/5 rounded-lg p-4">
+                          <div className="text-sm text-gray-400 mb-3">Volume Analysis</div>
+                          <div className="space-y-2 text-xs">
+                            <div className="flex justify-between">
+                              <span className="text-gray-400">OBV Trend:</span>
+                              <span className={`font-semibold ${
+                                stock.accumulationMetrics.onBalanceVolume.trend === 'RISING' ? 'text-green-400' : 
+                                stock.accumulationMetrics.onBalanceVolume.trend === 'FALLING' ? 'text-red-400' : 'text-yellow-400'
+                              }`}>
+                                {stock.accumulationMetrics.onBalanceVolume.trend}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-400">A/D Line:</span>
+                              <span className={`font-semibold ${
+                                stock.accumulationMetrics.accumulationDistribution.trend === 'ACCUMULATION' ? 'text-green-400' : 
+                                stock.accumulationMetrics.accumulationDistribution.trend === 'DISTRIBUTION' ? 'text-red-400' : 'text-yellow-400'
+                              }`}>
+                                {stock.accumulationMetrics.accumulationDistribution.trend}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-400">VPT Trend:</span>
+                              <span className={`font-semibold ${
+                                stock.accumulationMetrics.volumePriceTrend.trend === 'POSITIVE' ? 'text-green-400' : 
+                                stock.accumulationMetrics.volumePriceTrend.trend === 'NEGATIVE' ? 'text-red-400' : 'text-yellow-400'
+                              }`}>
+                                {stock.accumulationMetrics.volumePriceTrend.trend}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="bg-white/5 rounded-lg p-4">
+                          <div className="text-sm text-gray-400 mb-3">Consolidation Analysis</div>
+                          <div className="space-y-2 text-xs">
+                            <div className="flex justify-between">
+                              <span className="text-gray-400">Range Tightness:</span>
+                              <span className="text-white font-semibold">
+                                {stock.accumulationMetrics.consolidation.rangeTightness.toFixed(1)}%
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-400">Support Level:</span>
+                              <span className="text-green-400 font-semibold">
+                                {formatPrice(stock.accumulationMetrics.consolidation.supportLevel)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-400">Resistance Level:</span>
+                              <span className="text-red-400 font-semibold">
+                                {formatPrice(stock.accumulationMetrics.consolidation.resistanceLevel)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Wyckoff Characteristics */}
+                      {stock.accumulationMetrics.wyckoffPhase.characteristics.length > 0 && (
+                        <div className="mb-4">
+                          <div className="text-sm text-gray-400 mb-2">Wyckoff Characteristics</div>
+                          <div className="space-y-1">
+                            {stock.accumulationMetrics.wyckoffPhase.characteristics.map((characteristic, idx) => (
+                              <div key={idx} className="text-sm text-yellow-300 flex items-start">
+                                <span className="text-yellow-400 mr-2">•</span>
+                                {characteristic}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Analysis Reasoning */}
+                      <div>
+                        <div className="text-sm text-gray-400 mb-2">Analysis Reasoning</div>
+                        <div className="space-y-1">
+                          {stock.reasoning.map((reason, idx) => (
+                            <div key={idx} className="text-sm text-gray-300 flex items-start">
+                              <span className="text-purple-400 mr-2">•</span>
+                              {reason}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Financial Data Display */}
         {financialData && (
           <div className="max-w-4xl mx-auto mb-12">
@@ -748,12 +1130,12 @@ export default function Home() {
 
           <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
             <div className="flex items-center space-x-3 mb-4">
-              <BarChart3 className="h-8 w-8 text-orange-400" />
-              <h3 className="text-xl font-semibold text-white">Technical Indicators</h3>
+              <Bitcoin className="h-8 w-8 text-indigo-400" />
+              <h3 className="text-xl font-semibold text-white">Accumulation Scanner</h3>
             </div>
             <p className="text-gray-300">
-              Professional-grade technical analysis with RSI, moving averages, volume analysis,
-              volatility metrics, and trend direction insights.
+              Detect smart money accumulation patterns using OBV, A/D Line, Wyckoff methodology,
+              and volume profile analysis to find stocks being accumulated at lower prices.
             </p>
           </div>
         </div>
