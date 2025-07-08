@@ -620,16 +620,45 @@ function generateInsights(topCoin: CoinVolumeData, volumeAnalysis: VolumeAnalysi
   return insights;
 }
 
+// Get OpenAI API key using the same method as AI investment analysis
+function getOpenAIApiKey(): string | null {
+  // Try environment variable first
+  const envKey = process.env.OPENAI_API_KEY;
+  if (envKey && envKey !== 'your-actual-key-here' && !envKey.includes('your-act')) {
+    return envKey.replace(/\s+/g, ''); // Remove any whitespace/newlines
+  }
+  
+  // If we're in development, try to read from .env.local
+  if (process.env.NODE_ENV === 'development') {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const envPath = path.join(process.cwd(), '.env.local');
+      const envContent = fs.readFileSync(envPath, 'utf8');
+      const match = envContent.match(/OPENAI_API_KEY=(.+)/);
+      if (match && match[1] && !match[1].includes('your-act')) {
+        // Clean up the API key by removing whitespace and newlines
+        return match[1].replace(/\s+/g, '').trim();
+      }
+    } catch (error) {
+      console.error('Error reading .env.local:', error);
+    }
+  }
+  
+  return null;
+}
+
 // Generate detailed AI analysis using ChatGPT
 async function generateAIAnalysis(topGainers: CoinVolumeData[], volumeAnalysis: VolumeAnalysis, walletActivity: WalletActivity[]): Promise<any> {
   try {
-    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+    const OPENAI_API_KEY = getOpenAIApiKey();
     
-    // For now, always use demo analysis - you can change this to use real ChatGPT later
-    if (!OPENAI_API_KEY || OPENAI_API_KEY === 'demo-key' || OPENAI_API_KEY === 'your_openai_api_key_here' || true) {
-      console.log('Using demo AI analysis - comprehensive investment analysis based on volume data');
+    if (!OPENAI_API_KEY) {
+      console.log('OpenAI API key not available, using demo analysis');
       return generateDemoAIAnalysis(topGainers, volumeAnalysis, walletActivity);
     }
+
+    console.log('Using real ChatGPT API for volume trend analysis');
 
     // Prepare data summary for AI analysis
     const dataForAnalysis = {
@@ -660,10 +689,16 @@ async function generateAIAnalysis(topGainers: CoinVolumeData[], volumeAnalysis: 
     };
 
     const prompt = `
-You are a professional cryptocurrency market analyst with expertise in volume analysis, risk assessment, and investment strategy. Analyze the following volume trend data and provide a comprehensive investment analysis.
+You are a professional cryptocurrency market analyst with expertise in volume analysis, risk assessment, and investment strategy. You specialize in identifying volume-based trading opportunities and market manipulation patterns.
 
-DATA TO ANALYZE:
+CURRENT MARKET DATA TO ANALYZE:
 ${JSON.stringify(dataForAnalysis, null, 2)}
+
+ANALYSIS CONTEXT:
+- This data represents the top 10 cryptocurrencies with the highest volume increases in the last 24 hours
+- Volume analysis is critical for identifying legitimate opportunities vs pump-and-dump schemes
+- Wallet activity patterns indicate whether volume is from whales, retail, or institutions
+- Sustainability scores help predict if volume increases will continue
 
 Please provide a detailed analysis in the following JSON format:
 
@@ -695,16 +730,18 @@ Please provide a detailed analysis in the following JSON format:
 }
 
 ANALYSIS REQUIREMENTS:
-1. Focus heavily on volume analysis and what volume patterns indicate
-2. Assess each coin's risk level based on market cap, volume sustainability, and wallet activity
-3. Identify potential pump-and-dump schemes or unsustainable volume spikes
-4. Consider market cap to volume ratios for risk assessment
-5. Analyze whale vs retail participation for each asset
-6. Provide specific, actionable investment advice
-7. Be conservative with risk assessments - err on the side of caution
-8. Consider both short-term and long-term perspectives
-9. Include at least 3 top picks and 3 risk warnings
-10. Make recommendations based on data, not speculation
+1. Focus heavily on volume analysis and what volume patterns indicate about market sentiment
+2. Assess each coin's risk level based on market cap, volume sustainability, and wallet activity patterns
+3. Identify potential pump-and-dump schemes or unsustainable volume spikes (look for >200% volume increases)
+4. Consider market cap to volume ratios - high volume/low market cap = higher manipulation risk
+5. Analyze whale vs retail participation - high whale concentration = manipulation risk
+6. Provide specific, actionable investment advice with entry/exit strategies
+7. Be conservative with risk assessments - err on the side of caution for user safety
+8. Consider both short-term (1-7 days) and medium-term (1-3 months) perspectives
+9. Include exactly 3 top picks and 3 risk warnings with detailed explanations
+10. Make recommendations based on data analysis, not speculation or hype
+11. For each recommendation, specify position sizing (% of portfolio) and stop-loss levels
+12. Identify coins that may be experiencing organic growth vs artificial pumps
 
 Return only valid JSON with no additional text or formatting.`;
 
@@ -732,8 +769,10 @@ Return only valid JSON with no additional text or formatting.`;
     });
 
     if (!response.ok) {
-      console.error('OpenAI API error:', response.status);
-      return null;
+      const errorText = await response.text();
+      console.error('OpenAI API error:', response.status, errorText);
+      console.log('Falling back to demo analysis due to API error');
+      return generateDemoAIAnalysis(topGainers, volumeAnalysis, walletActivity);
     }
 
     const data = await response.json();
@@ -750,12 +789,15 @@ Return only valid JSON with no additional text or formatting.`;
       return analysisResult;
     } catch (parseError) {
       console.error('Error parsing AI response:', parseError);
-      return null;
+      console.log('AI response was:', aiResponse);
+      console.log('Falling back to demo analysis due to parsing error');
+      return generateDemoAIAnalysis(topGainers, volumeAnalysis, walletActivity);
     }
 
   } catch (error) {
     console.error('Error generating AI analysis:', error);
-    return null;
+    console.log('Falling back to demo analysis due to general error');
+    return generateDemoAIAnalysis(topGainers, volumeAnalysis, walletActivity);
   }
 }
 
