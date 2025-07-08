@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { getOpenAIApiKey } from './config';
 
 interface AccumulationStock {
   symbol: string;
@@ -73,6 +72,33 @@ interface InvestmentRecommendation {
   lastUpdated: string;
 }
 
+function getOpenAIApiKey(): string | null {
+  // Try environment variable first
+  const envKey = process.env.OPENAI_API_KEY;
+  if (envKey && envKey !== 'your-actual-key-here' && !envKey.includes('your-act')) {
+    return envKey.replace(/\s+/g, ''); // Remove any whitespace/newlines
+  }
+  
+  // If we're in development, try to read from .env.local
+  if (process.env.NODE_ENV === 'development') {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const envPath = path.join(process.cwd(), '.env.local');
+      const envContent = fs.readFileSync(envPath, 'utf8');
+      const match = envContent.match(/OPENAI_API_KEY=(.+)/);
+      if (match && match[1] && !match[1].includes('your-act')) {
+        // Clean up the API key by removing whitespace and newlines
+        return match[1].replace(/\s+/g, '').trim();
+      }
+    } catch (error) {
+      console.error('Error reading .env.local:', error);
+    }
+  }
+  
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const apiKey = getOpenAIApiKey();
@@ -98,32 +124,59 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Prepare data for AI analysis
+    // Prepare data for AI analysis with proper null checks
     const topStocks = stocks.slice(0, 20); // Analyze top 20 for better AI processing
     
-    const stockSummary = topStocks.map(stock => ({
-      symbol: stock.symbol,
-      name: stock.name,
-      price: stock.currentPrice,
-      score: stock.accumulationScore,
-      change: stock.changePercent,
-      consolidationDays: stock.timeframe.daysInConsolidation,
-      volumeTrend: stock.accumulationMetrics.onBalanceVolume.trend,
-      adStrength: stock.accumulationMetrics.accumulationDistribution.strength || 0,
-      wyckoffPhase: stock.accumulationMetrics.wyckoffPhase.phase,
-      wyckoffConfidence: stock.accumulationMetrics.wyckoffPhase.confidence || 0,
-      isConsolidating: stock.accumulationMetrics.consolidation.isConsolidating,
-      rangeTightness: stock.accumulationMetrics.consolidation.rangeTightness || 0,
-      volumeRatio: stock.accumulationMetrics.volumeProfile.volumeRatio || 0,
-      signals: {
-        volumeDivergence: stock.accumulationSignals.volumeDivergence,
-        priceConsolidation: stock.accumulationSignals.priceConsolidation,
-        smartMoneyFlow: stock.accumulationSignals.smartMoneyFlow,
-        wyckoffAccumulation: stock.accumulationSignals.wyckoffAccumulation,
-        highVolumeAtSupport: stock.accumulationSignals.highVolumeAtSupport
-      },
-      reasoning: stock.reasoning
-    }));
+    const stockSummary = topStocks.map(stock => {
+      // Ensure all nested objects exist with default values
+      const safeStock = {
+        symbol: stock.symbol || 'UNKNOWN',
+        name: stock.name || 'Unknown Company',
+        currentPrice: stock.currentPrice || 0,
+        accumulationScore: stock.accumulationScore || 0,
+        changePercent: stock.changePercent || 0,
+        timeframe: stock.timeframe || { daysInConsolidation: 0 },
+        accumulationMetrics: {
+          onBalanceVolume: stock.accumulationMetrics?.onBalanceVolume || { trend: 'NEUTRAL' },
+          accumulationDistribution: stock.accumulationMetrics?.accumulationDistribution || { trend: 'NEUTRAL', strength: 0 },
+          wyckoffPhase: stock.accumulationMetrics?.wyckoffPhase || { phase: 'UNKNOWN', confidence: 0 },
+          consolidation: stock.accumulationMetrics?.consolidation || { isConsolidating: false, duration: 0, rangeTightness: 0 },
+          volumeProfile: stock.accumulationMetrics?.volumeProfile || { volumeRatio: 0, highVolumeAtLows: false }
+        },
+        accumulationSignals: stock.accumulationSignals || {
+          volumeDivergence: false,
+          priceConsolidation: false,
+          smartMoneyFlow: false,
+          wyckoffAccumulation: false,
+          highVolumeAtSupport: false
+        },
+        reasoning: stock.reasoning || []
+      };
+
+      return {
+        symbol: safeStock.symbol,
+        name: safeStock.name,
+        price: safeStock.currentPrice,
+        score: safeStock.accumulationScore,
+        change: safeStock.changePercent,
+        consolidationDays: safeStock.timeframe.daysInConsolidation,
+        volumeTrend: safeStock.accumulationMetrics.onBalanceVolume.trend,
+        adStrength: safeStock.accumulationMetrics.accumulationDistribution.strength || 0,
+        wyckoffPhase: safeStock.accumulationMetrics.wyckoffPhase.phase,
+        wyckoffConfidence: safeStock.accumulationMetrics.wyckoffPhase.confidence || 0,
+        isConsolidating: safeStock.accumulationMetrics.consolidation.isConsolidating,
+        rangeTightness: safeStock.accumulationMetrics.consolidation.rangeTightness || 0,
+        volumeRatio: safeStock.accumulationMetrics.volumeProfile.volumeRatio || 0,
+        signals: {
+          volumeDivergence: safeStock.accumulationSignals.volumeDivergence,
+          priceConsolidation: safeStock.accumulationSignals.priceConsolidation,
+          smartMoneyFlow: safeStock.accumulationSignals.smartMoneyFlow,
+          wyckoffAccumulation: safeStock.accumulationSignals.wyckoffAccumulation,
+          highVolumeAtSupport: safeStock.accumulationSignals.highVolumeAtSupport
+        },
+        reasoning: safeStock.reasoning
+      };
+    });
 
     const prompt = `
 You are a professional investment advisor analyzing accumulation patterns for a weekly €200 investment strategy. 
@@ -140,14 +193,14 @@ Here are the top 20 stocks showing accumulation patterns, ranked by accumulation
 
 ${stockSummary.map((stock, index) => `
 ${index + 1}. ${stock.symbol} (${stock.name})
-   - Price: €${(stock.price || 0).toFixed(2)}
+   - Price: €${stock.price.toFixed(2)}
    - Accumulation Score: ${stock.score}/100
-   - Recent Change: ${(stock.change || 0).toFixed(2)}%
-   - Consolidation: ${stock.consolidationDays} days, ${(stock.rangeTightness || 0).toFixed(1)}% range
+   - Recent Change: ${stock.change.toFixed(2)}%
+   - Consolidation: ${stock.consolidationDays} days, ${stock.rangeTightness.toFixed(1)}% range
    - Volume Trend: ${stock.volumeTrend}
-   - A/D Strength: ${(stock.adStrength || 0).toFixed(1)}
+   - A/D Strength: ${stock.adStrength.toFixed(1)}
    - Wyckoff Phase: ${stock.wyckoffPhase} (${stock.wyckoffConfidence}% confidence)
-   - Volume Ratio: ${(stock.volumeRatio || 0).toFixed(2)}x
+   - Volume Ratio: ${stock.volumeRatio.toFixed(2)}x
    - Key Signals: ${Object.entries(stock.signals).filter(([_, value]) => value).map(([key]) => key).join(', ')}
    - Analysis: ${stock.reasoning.slice(0, 2).join('; ')}
 `).join('\n')}
