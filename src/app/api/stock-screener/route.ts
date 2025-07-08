@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import yahooFinance from 'yahoo-finance2';
 
+// Force dynamic rendering for this API route
+export const dynamic = 'force-dynamic';
+
 interface ScreeningCriteria {
   minVolume?: number;
   maxRSI?: number;
