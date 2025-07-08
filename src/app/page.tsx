@@ -269,12 +269,107 @@ interface IndianStockResults {
   timestamp: string;
 }
 
+interface WhaleTransaction {
+  hash: string;
+  chain: string;
+  from: string;
+  to: string;
+  value: number;
+  valueUSD: number;
+  token: {
+    symbol: string;
+    name: string;
+    address: string;
+    decimals: number;
+  };
+  timestamp: string;
+  blockNumber: number;
+  gasUsed: number;
+  type: 'transfer' | 'swap' | 'liquidity' | 'bridge' | 'nft';
+  whaleScore: number;
+}
+
+interface WhaleWallet {
+  address: string;
+  chain: string;
+  balance: number;
+  balanceUSD: number;
+  tokens: Array<{
+    symbol: string;
+    balance: number;
+    balanceUSD: number;
+    percentage: number;
+  }>;
+  totalValueUSD: number;
+  profitLoss: number;
+  profitLossPercentage: number;
+  firstSeen: string;
+  lastActive: string;
+  transactionCount: number;
+  whaleRank: number;
+}
+
+interface CryptoMarketData {
+  symbol: string;
+  name: string;
+  price: number;
+  priceChange24h: number;
+  priceChangePercentage24h: number;
+  marketCap: number;
+  volume24h: number;
+  circulatingSupply: number;
+  totalSupply: number;
+  rank: number;
+}
+
+interface WhaleAnalytics {
+  totalWhales: number;
+  totalValueTracked: number;
+  topMovers: WhaleTransaction[];
+  emergingWallets: WhaleWallet[];
+  marketSentiment: {
+    bullish: number;
+    bearish: number;
+    neutral: number;
+  };
+  flowAnalysis: {
+    inflow: number;
+    outflow: number;
+    netFlow: number;
+    exchangeFlow: {
+      inflow: number;
+      outflow: number;
+    };
+  };
+  chainDistribution: Array<{
+    chain: string;
+    percentage: number;
+    value: number;
+  }>;
+}
+
+interface CryptoWhaleResults {
+  success: boolean;
+  timestamp: string;
+  recentTransactions: WhaleTransaction[];
+  topWhales: WhaleWallet[];
+  marketData: CryptoMarketData[];
+  analytics: WhaleAnalytics;
+  alerts: Array<{
+    type: 'large_transaction' | 'whale_accumulation' | 'exchange_flow' | 'new_whale';
+    message: string;
+    severity: 'low' | 'medium' | 'high';
+    timestamp: string;
+    data: any;
+  }>;
+}
+
 export default function Home() {
   const [symbol, setSymbol] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [financialData, setFinancialData] = useState<FinancialData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'analyze' | 'screen' | 'accumulation' | 'ai-analysis' | 'indian-stocks'>('analyze');
+  const [activeTab, setActiveTab] = useState<'analyze' | 'screen' | 'accumulation' | 'ai-analysis' | 'indian-stocks' | 'crypto-whales'>('analyze');
   const [isScreening, setIsScreening] = useState(false);
   const [screeningResults, setScreeningResults] = useState<ScreeningResults | null>(null);
   const [minScore, setMinScore] = useState(50);
@@ -295,6 +390,11 @@ export default function Home() {
   const [selectedSector, setSelectedSector] = useState<string>('');
   const [minPrice, setMinPrice] = useState<number>(0);
   const [maxPrice, setMaxPrice] = useState<number>(10000);
+  const [isCryptoWhaleTracking, setIsCryptoWhaleTracking] = useState(false);
+  const [cryptoWhaleResults, setCryptoWhaleResults] = useState<CryptoWhaleResults | null>(null);
+  const [selectedChain, setSelectedChain] = useState<string>('all');
+  const [minWhaleValue, setMinWhaleValue] = useState<number>(100000);
+  const [whaleLimit, setWhaleLimit] = useState<number>(50);
 
   const handleAnalyze = async () => {
     if (!symbol.trim()) return;
@@ -424,6 +524,33 @@ export default function Home() {
       setError(err instanceof Error ? err.message : 'An error occurred during Indian stock screening');
     } finally {
       setIsIndianStockScreening(false);
+    }
+  };
+
+  const handleCryptoWhaleTrack = async () => {
+    setIsCryptoWhaleTracking(true);
+    setError(null);
+    setCryptoWhaleResults(null);
+    
+    try {
+      const params = new URLSearchParams({
+        chain: selectedChain,
+        minValue: minWhaleValue.toString(),
+        limit: whaleLimit.toString(),
+      });
+      
+      const response = await fetch(`/api/crypto-whales?${params}`);
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to track crypto whales');
+      }
+      
+      setCryptoWhaleResults(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred during crypto whale tracking');
+    } finally {
+      setIsCryptoWhaleTracking(false);
     }
   };
 
@@ -574,6 +701,16 @@ export default function Home() {
               }`}
             >
               Indian Stocks
+            </button>
+            <button
+              onClick={() => setActiveTab('crypto-whales')}
+              className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+                activeTab === 'crypto-whales'
+                  ? 'bg-emerald-500 text-white shadow-lg'
+                  : 'text-gray-300 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              Crypto Whales
             </button>
           </div>
         </div>
@@ -1826,6 +1963,284 @@ export default function Home() {
 
                 <div className="mt-6 text-center text-xs text-gray-400">
                   Results generated on {new Date(indianStockResults.timestamp).toLocaleString()}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Crypto Whales Tab */}
+        {activeTab === 'crypto-whales' && (
+          <div className="max-w-7xl mx-auto mb-12">
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20">
+              <div className="flex items-center space-x-4 mb-6">
+                <div className="h-6 w-6 bg-gradient-to-r from-purple-400 to-blue-500 rounded-full flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">🐋</span>
+                </div>
+                <h3 className="text-xl font-semibold text-white">Crypto Whale Tracker</h3>
+                <div className="text-sm text-gray-400">Multi-chain Big Money Flow Analysis</div>
+              </div>
+              
+              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Blockchain
+                  </label>
+                  <select
+                    value={selectedChain}
+                    onChange={(e) => setSelectedChain(e.target.value)}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent"
+                  >
+                    <option value="all">All Chains</option>
+                    <option value="ethereum">Ethereum</option>
+                    <option value="solana">Solana</option>
+                    <option value="polygon">Polygon</option>
+                    <option value="bsc">BSC</option>
+                    <option value="avalanche">Avalanche</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Min Transaction Value ($)
+                  </label>
+                  <input
+                    type="number"
+                    min="1000"
+                    value={minWhaleValue}
+                    onChange={(e) => setMinWhaleValue(parseInt(e.target.value) || 100000)}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Max Results
+                  </label>
+                  <input
+                    type="number"
+                    min="10"
+                    max="100"
+                    value={whaleLimit}
+                    onChange={(e) => setWhaleLimit(parseInt(e.target.value) || 50)}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <button
+                    onClick={handleCryptoWhaleTrack}
+                    disabled={isCryptoWhaleTracking}
+                    className="w-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 disabled:from-gray-600 disabled:to-gray-600 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 disabled:cursor-not-allowed"
+                  >
+                    {isCryptoWhaleTracking ? (
+                      <div className="flex items-center justify-center space-x-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        <span>Tracking...</span>
+                      </div>
+                    ) : (
+                      'Track Whales'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Crypto Whale Results */}
+            {cryptoWhaleResults && (
+              <div className="mt-8 space-y-8">
+                {/* Analytics Overview */}
+                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                    <h4 className="text-lg font-semibold text-white mb-2">Total Whales</h4>
+                    <p className="text-3xl font-bold text-purple-400">{cryptoWhaleResults.analytics.totalWhales}</p>
+                    <p className="text-sm text-gray-400">Active whale wallets</p>
+                  </div>
+                  <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                    <h4 className="text-lg font-semibold text-white mb-2">Total Value</h4>
+                    <p className="text-3xl font-bold text-blue-400">
+                      ${(cryptoWhaleResults.analytics.totalValueTracked / 1000000000).toFixed(2)}B
+                    </p>
+                    <p className="text-sm text-gray-400">USD tracked</p>
+                  </div>
+                  <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                    <h4 className="text-lg font-semibold text-white mb-2">Net Flow</h4>
+                    <p className={`text-3xl font-bold ${cryptoWhaleResults.analytics.flowAnalysis.netFlow >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {cryptoWhaleResults.analytics.flowAnalysis.netFlow >= 0 ? '+' : ''}
+                      ${(cryptoWhaleResults.analytics.flowAnalysis.netFlow / 1000000).toFixed(1)}M
+                    </p>
+                    <p className="text-sm text-gray-400">24h flow</p>
+                  </div>
+                  <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                    <h4 className="text-lg font-semibold text-white mb-2">Market Sentiment</h4>
+                    <div className="flex items-center space-x-2">
+                      <div className="flex-1 bg-white/20 rounded-full h-2">
+                        <div 
+                          className="bg-green-400 h-2 rounded-full" 
+                          style={{ width: `${cryptoWhaleResults.analytics.marketSentiment.bullish}%` }}
+                        ></div>
+                      </div>
+                      <span className="text-sm text-green-400">{cryptoWhaleResults.analytics.marketSentiment.bullish}%</span>
+                    </div>
+                    <p className="text-sm text-gray-400">Bullish sentiment</p>
+                  </div>
+                </div>
+
+                {/* Alerts */}
+                {cryptoWhaleResults.alerts.length > 0 && (
+                  <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20">
+                    <h4 className="text-xl font-semibold text-white mb-6">🚨 Whale Alerts</h4>
+                    <div className="space-y-4">
+                      {cryptoWhaleResults.alerts.slice(0, 5).map((alert, index) => (
+                        <div key={index} className={`p-4 rounded-xl border-l-4 ${
+                          alert.severity === 'high' ? 'bg-red-500/20 border-red-400' :
+                          alert.severity === 'medium' ? 'bg-yellow-500/20 border-yellow-400' :
+                          'bg-blue-500/20 border-blue-400'
+                        }`}>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className={`text-sm font-medium px-2 py-1 rounded ${
+                              alert.severity === 'high' ? 'bg-red-500/30 text-red-300' :
+                              alert.severity === 'medium' ? 'bg-yellow-500/30 text-yellow-300' :
+                              'bg-blue-500/30 text-blue-300'
+                            }`}>
+                              {alert.type.replace('_', ' ').toUpperCase()}
+                            </span>
+                            <span className="text-xs text-gray-400">
+                              {new Date(alert.timestamp).toLocaleTimeString()}
+                            </span>
+                          </div>
+                          <p className="text-white">{alert.message}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Recent Large Transactions */}
+                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20">
+                  <h4 className="text-xl font-semibold text-white mb-6">💰 Recent Whale Transactions</h4>
+                  <div className="space-y-4">
+                    {cryptoWhaleResults.recentTransactions.slice(0, 10).map((tx, index) => (
+                      <div key={index} className="bg-white/5 rounded-xl p-6 border border-white/10">
+                        <div className="flex items-center justify-between mb-4">
+                          <div>
+                            <div className="flex items-center space-x-3">
+                              <span className="text-lg font-bold text-white">{tx.token.symbol}</span>
+                              <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded">
+                                {tx.chain.toUpperCase()}
+                              </span>
+                              <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded">
+                                {tx.type.toUpperCase()}
+                              </span>
+                            </div>
+                            <p className="text-gray-400 text-sm mt-1">{tx.token.name}</p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-2xl font-bold text-white">
+                              ${(tx.valueUSD / 1000000).toFixed(2)}M
+                            </div>
+                            <div className="text-sm text-gray-400">
+                              {tx.value.toFixed(2)} {tx.token.symbol}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="grid md:grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <p className="text-gray-400">From:</p>
+                            <p className="text-white font-mono text-xs">{tx.from.substring(0, 20)}...</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-400">To:</p>
+                            <p className="text-white font-mono text-xs">{tx.to.substring(0, 20)}...</p>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/10">
+                          <div className="flex items-center space-x-4 text-xs text-gray-400">
+                            <span>Block: {tx.blockNumber}</span>
+                            <span>Gas: {tx.gasUsed.toLocaleString()}</span>
+                            <span>Score: {tx.whaleScore}/100</span>
+                          </div>
+                          <span className="text-xs text-gray-400">
+                            {new Date(tx.timestamp).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Top Whale Wallets */}
+                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20">
+                  <h4 className="text-xl font-semibold text-white mb-6">🐋 Top Whale Wallets</h4>
+                  <div className="space-y-4">
+                    {cryptoWhaleResults.topWhales.slice(0, 5).map((whale, index) => (
+                      <div key={index} className="bg-white/5 rounded-xl p-6 border border-white/10">
+                        <div className="flex items-center justify-between mb-4">
+                          <div>
+                            <div className="flex items-center space-x-3">
+                              <span className="text-lg font-bold text-white">#{whale.whaleRank}</span>
+                              <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded">
+                                {whale.chain.toUpperCase()}
+                              </span>
+                            </div>
+                            <p className="text-gray-400 text-sm font-mono">{whale.address.substring(0, 30)}...</p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-2xl font-bold text-white">
+                              ${(whale.totalValueUSD / 1000000).toFixed(2)}M
+                            </div>
+                            <div className={`text-sm font-semibold ${
+                              whale.profitLossPercentage >= 0 ? 'text-green-400' : 'text-red-400'
+                            }`}>
+                              {whale.profitLossPercentage >= 0 ? '+' : ''}{whale.profitLossPercentage.toFixed(1)}%
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="grid md:grid-cols-3 gap-4 mb-4">
+                          {whale.tokens.slice(0, 3).map((token, idx) => (
+                            <div key={idx} className="bg-white/5 rounded-lg p-3">
+                              <p className="text-xs text-gray-400">{token.symbol}</p>
+                              <p className="text-white font-semibold">${(token.balanceUSD / 1000).toFixed(1)}K</p>
+                              <p className="text-xs text-gray-400">{token.percentage.toFixed(1)}%</p>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        <div className="flex items-center justify-between text-xs text-gray-400">
+                          <span>Transactions: {whale.transactionCount.toLocaleString()}</span>
+                          <span>Last Active: {new Date(whale.lastActive).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Chain Distribution */}
+                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20">
+                  <h4 className="text-xl font-semibold text-white mb-6">⛓️ Chain Distribution</h4>
+                  <div className="space-y-4">
+                    {cryptoWhaleResults.analytics.chainDistribution.map((chain, index) => (
+                      <div key={index} className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <span className="text-white font-medium capitalize">{chain.chain}</span>
+                          <div className="flex-1 bg-white/20 rounded-full h-2 w-32">
+                            <div 
+                              className="bg-purple-400 h-2 rounded-full" 
+                              style={{ width: `${chain.percentage}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-white font-semibold">{chain.percentage}%</span>
+                          <p className="text-xs text-gray-400">${(chain.value / 1000000).toFixed(1)}M</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-6 text-center text-xs text-gray-400">
+                  Data updated: {new Date(cryptoWhaleResults.timestamp).toLocaleString()}
                 </div>
               </div>
             )}
