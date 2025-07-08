@@ -60,20 +60,55 @@ interface AccumulationStock {
   reasoning: string[];
 }
 
-// Focus on stocks that typically show good accumulation patterns
+// Comprehensive list of stocks for accumulation analysis (100+ stocks)
 const ACCUMULATION_STOCKS = [
   // Large Cap Tech
-  'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NVDA', 'TSLA', 'NFLX',
+  'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NVDA', 'TSLA', 'NFLX', 'ADBE', 'CRM',
+  'ORCL', 'INTC', 'AMD', 'QCOM', 'AVGO', 'TXN', 'MU', 'AMAT', 'LRCX', 'KLAC',
+  
   // Growth Stocks
-  'CRM', 'SHOP', 'ROKU', 'SQ', 'PLTR', 'SNOW', 'CRWD', 'ZS',
+  'SHOP', 'ROKU', 'SQ', 'PLTR', 'SNOW', 'CRWD', 'ZS', 'DDOG', 'NET', 'OKTA',
+  'TWLO', 'ZOOM', 'DOCU', 'WORK', 'TEAM', 'ATLASSIAN', 'SPLK', 'WDAY', 'VEEV', 'NOW',
+  
   // Crypto-Related
-  'COIN', 'RIOT', 'MARA', 'MSTR', 'SQ',
+  'COIN', 'RIOT', 'MARA', 'MSTR', 'BITF', 'HUT', 'CLSK', 'BTBT',
+  
   // ETFs
-  'SPY', 'QQQ', 'IWM', 'XLK', 'ARKK',
+  'SPY', 'QQQ', 'IWM', 'XLK', 'ARKK', 'ARKW', 'ARKG', 'VTI', 'VOO', 'VEA',
+  
   // Traditional Value
-  'BRK-B', 'JPM', 'BAC', 'WMT', 'JNJ', 'PG', 'KO', 'DIS',
-  // Emerging Growth
-  'RBLX', 'U', 'DKNG', 'PENN', 'SOFI', 'AFRM', 'HOOD'
+  'BRK-B', 'JPM', 'BAC', 'WMT', 'JNJ', 'PG', 'KO', 'DIS', 'V', 'MA',
+  'UNH', 'HD', 'PFE', 'ABBV', 'TMO', 'ABT', 'CVX', 'XOM', 'LLY', 'COST',
+  
+  // Financial Services
+  'GS', 'MS', 'C', 'WFC', 'USB', 'PNC', 'TFC', 'COF', 'AXP', 'BLK',
+  'SCHW', 'SPGI', 'ICE', 'CME', 'MCO', 'MSCI', 'PYPL', 'ADYEY',
+  
+  // Healthcare & Biotech
+  'MRNA', 'BNTX', 'GILD', 'REGN', 'VRTX', 'BIIB', 'AMGN', 'CELG', 'BMY', 'MRK',
+  'ISRG', 'DXCM', 'ILMN', 'INCY', 'ALXN', 'BMRN', 'TECH', 'SGEN', 'EXAS',
+  
+  // Consumer & Retail
+  'AMZN', 'BABA', 'JD', 'PDD', 'MELI', 'SE', 'BKNG', 'ABNB', 'UBER', 'LYFT',
+  'DASH', 'ETSY', 'EBAY', 'PINS', 'SNAP', 'TWTR', 'SPOT', 'NFLX', 'DIS',
+  
+  // Industrial & Energy
+  'CAT', 'DE', 'BA', 'GE', 'HON', 'UPS', 'FDX', 'LMT', 'RTX', 'NOC',
+  'TSLA', 'F', 'GM', 'RIVN', 'LCID', 'NIO', 'XPEV', 'LI', 'PLUG', 'FCEL',
+  
+  // Communication Services
+  'GOOG', 'META', 'NFLX', 'DIS', 'CMCSA', 'VZ', 'T', 'TMUS', 'CHTR', 'DISH',
+  
+  // Emerging Growth & Meme Stocks
+  'RBLX', 'U', 'DKNG', 'PENN', 'SOFI', 'AFRM', 'HOOD', 'WISH', 'CLOV', 'AMC',
+  'GME', 'BB', 'NOK', 'PLBY', 'SPCE', 'NKLA', 'WKHS', 'RIDE', 'GOEV', 'HYLN',
+  
+  // Real Estate & REITs
+  'REIT', 'AMT', 'PLD', 'CCI', 'EQIX', 'WELL', 'DLR', 'PSA', 'O', 'STOR',
+  
+  // Utilities & Commodities
+  'NEE', 'DUK', 'SO', 'AEP', 'EXC', 'XEL', 'SRE', 'D', 'PCG', 'EIX',
+  'GOLD', 'NEM', 'FCX', 'SCCO', 'AA', 'X', 'CLF', 'MT', 'VALE', 'RIO'
 ];
 
 async function getAccumulationData(symbol: string): Promise<AccumulationStock | null> {

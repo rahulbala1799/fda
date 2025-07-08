@@ -185,9 +185,10 @@ export default function Home() {
   const [maxResults, setMaxResults] = useState(10);
   const [isAccumulationScanning, setIsAccumulationScanning] = useState(false);
   const [accumulationResults, setAccumulationResults] = useState<AccumulationResults | null>(null);
-  const [accumulationMinScore, setAccumulationMinScore] = useState(60);
-  const [accumulationMaxResults, setAccumulationMaxResults] = useState(15);
+  const [accumulationMinScore, setAccumulationMinScore] = useState(50);
+  const [accumulationMaxResults, setAccumulationMaxResults] = useState(100);
   const [includeETFs, setIncludeETFs] = useState(true);
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
   const handleAnalyze = async () => {
     if (!symbol.trim()) return;
@@ -484,7 +485,7 @@ export default function Home() {
                 <div className="text-sm text-gray-400">Find stocks being accumulated at lower prices</div>
               </div>
               
-              <div className="grid md:grid-cols-3 gap-6 mb-6">
+              <div className="grid md:grid-cols-4 gap-6 mb-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     Minimum Score (0-100)
@@ -505,7 +506,7 @@ export default function Home() {
                   <input
                     type="number"
                     min="1"
-                    max="50"
+                    max="100"
                     value={accumulationMaxResults}
                     onChange={(e) => setAccumulationMaxResults(parseInt(e.target.value))}
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent"
@@ -523,6 +524,33 @@ export default function Home() {
                       className="w-5 h-5 text-purple-400 bg-white/10 border-white/20 rounded focus:ring-purple-400"
                     />
                     <span className="text-white">Include ETFs in analysis</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    View Mode
+                  </label>
+                  <div className="flex items-center space-x-2 mt-3">
+                    <button
+                      onClick={() => setViewMode('cards')}
+                      className={`px-3 py-1 rounded-lg text-sm font-medium transition-all ${
+                        viewMode === 'cards'
+                          ? 'bg-purple-500 text-white'
+                          : 'bg-white/10 text-gray-300 hover:bg-white/20'
+                      }`}
+                    >
+                      Cards
+                    </button>
+                    <button
+                      onClick={() => setViewMode('table')}
+                      className={`px-3 py-1 rounded-lg text-sm font-medium transition-all ${
+                        viewMode === 'table'
+                          ? 'bg-purple-500 text-white'
+                          : 'bg-white/10 text-gray-300 hover:bg-white/20'
+                      }`}
+                    >
+                      Table
+                    </button>
                   </div>
                 </div>
               </div>
@@ -824,6 +852,139 @@ export default function Home() {
                   <div className="text-gray-400 text-lg">
                     No accumulation patterns found. Try lowering the minimum score.
                   </div>
+                </div>
+              ) : viewMode === 'table' ? (
+                <div>
+                  {/* Signal Legend */}
+                  <div className="mb-4 p-4 bg-white/5 rounded-lg">
+                    <div className="text-sm text-gray-400 mb-2">Signal Legend:</div>
+                    <div className="flex flex-wrap gap-4 text-xs">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                        <span className="text-gray-300">Volume Divergence</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                        <span className="text-gray-300">Price Consolidation</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                        <span className="text-gray-300">Smart Money Flow</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
+                        <span className="text-gray-300">Wyckoff Accumulation</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-indigo-400 rounded-full"></div>
+                        <span className="text-gray-300">High Volume at Support</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-white/20">
+                        <th className="text-left py-4 px-3 text-gray-300 font-semibold">#</th>
+                        <th className="text-left py-4 px-3 text-gray-300 font-semibold">Symbol</th>
+                        <th className="text-left py-4 px-3 text-gray-300 font-semibold">Name</th>
+                        <th className="text-right py-4 px-3 text-gray-300 font-semibold">Price</th>
+                        <th className="text-right py-4 px-3 text-gray-300 font-semibold">Change</th>
+                        <th className="text-center py-4 px-3 text-gray-300 font-semibold">Score</th>
+                        <th className="text-center py-4 px-3 text-gray-300 font-semibold">Days</th>
+                        <th className="text-center py-4 px-3 text-gray-300 font-semibold">Vol Ratio</th>
+                        <th className="text-center py-4 px-3 text-gray-300 font-semibold">OBV</th>
+                        <th className="text-center py-4 px-3 text-gray-300 font-semibold">A/D</th>
+                        <th className="text-center py-4 px-3 text-gray-300 font-semibold">Wyckoff</th>
+                        <th className="text-center py-4 px-3 text-gray-300 font-semibold">Signals</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {accumulationResults.stocks.map((stock, index) => (
+                        <tr key={stock.symbol} className="border-b border-white/10 hover:bg-white/5 transition-colors">
+                          <td className="py-4 px-3">
+                            <div className="bg-purple-500/20 text-purple-400 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
+                              {index + 1}
+                            </div>
+                          </td>
+                          <td className="py-4 px-3">
+                            <div className="font-bold text-white">{stock.symbol}</div>
+                          </td>
+                          <td className="py-4 px-3">
+                            <div className="text-gray-300 max-w-xs truncate">{stock.name}</div>
+                          </td>
+                          <td className="py-4 px-3 text-right">
+                            <div className="text-white font-semibold">{formatPrice(stock.currentPrice)}</div>
+                          </td>
+                          <td className="py-4 px-3 text-right">
+                            <div className={`font-semibold ${
+                              stock.change >= 0 ? 'text-green-400' : 'text-red-400'
+                            }`}>
+                              {stock.change >= 0 ? (
+                                <TrendingUp className="inline h-3 w-3 mr-1" />
+                              ) : (
+                                <TrendingDown className="inline h-3 w-3 mr-1" />
+                              )}
+                              {formatPercentage(stock.changePercent)}
+                            </div>
+                          </td>
+                          <td className="py-4 px-3 text-center">
+                            <div className="text-purple-400 font-bold">{stock.accumulationScore}</div>
+                          </td>
+                          <td className="py-4 px-3 text-center">
+                            <div className="text-indigo-400 font-semibold">{stock.timeframe.daysInConsolidation}</div>
+                          </td>
+                          <td className="py-4 px-3 text-center">
+                            <div className="text-cyan-400 font-semibold">{stock.accumulationMetrics.volumeProfile.volumeRatio.toFixed(2)}x</div>
+                          </td>
+                          <td className="py-4 px-3 text-center">
+                            <div className={`text-xs font-semibold ${
+                              stock.accumulationMetrics.onBalanceVolume.trend === 'RISING' ? 'text-green-400' : 
+                              stock.accumulationMetrics.onBalanceVolume.trend === 'FALLING' ? 'text-red-400' : 'text-yellow-400'
+                            }`}>
+                              {stock.accumulationMetrics.onBalanceVolume.trend}
+                            </div>
+                          </td>
+                          <td className="py-4 px-3 text-center">
+                            <div className={`text-xs font-semibold ${
+                              stock.accumulationMetrics.accumulationDistribution.trend === 'ACCUMULATION' ? 'text-green-400' : 
+                              stock.accumulationMetrics.accumulationDistribution.trend === 'DISTRIBUTION' ? 'text-red-400' : 'text-yellow-400'
+                            }`}>
+                              {stock.accumulationMetrics.accumulationDistribution.trend}
+                            </div>
+                          </td>
+                          <td className="py-4 px-3 text-center">
+                            <div className={`text-xs font-semibold ${
+                              stock.accumulationMetrics.wyckoffPhase.phase === 'ACCUMULATION' ? 'text-green-400' : 'text-yellow-400'
+                            }`}>
+                              {stock.accumulationMetrics.wyckoffPhase.phase}
+                            </div>
+                          </td>
+                          <td className="py-4 px-3 text-center">
+                            <div className="flex flex-wrap gap-1 justify-center">
+                              {stock.accumulationSignals.volumeDivergence && (
+                                <div className="w-2 h-2 bg-purple-400 rounded-full" title="Volume Divergence"></div>
+                              )}
+                              {stock.accumulationSignals.priceConsolidation && (
+                                <div className="w-2 h-2 bg-blue-400 rounded-full" title="Price Consolidation"></div>
+                              )}
+                              {stock.accumulationSignals.smartMoneyFlow && (
+                                <div className="w-2 h-2 bg-green-400 rounded-full" title="Smart Money Flow"></div>
+                              )}
+                              {stock.accumulationSignals.wyckoffAccumulation && (
+                                <div className="w-2 h-2 bg-yellow-400 rounded-full" title="Wyckoff Accumulation"></div>
+                              )}
+                              {stock.accumulationSignals.highVolumeAtSupport && (
+                                <div className="w-2 h-2 bg-indigo-400 rounded-full" title="High Volume at Support"></div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                                         </tbody>
+                   </table>
+                 </div>
                 </div>
               ) : (
                 <div className="space-y-6">
