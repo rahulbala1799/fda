@@ -285,8 +285,29 @@ interface WhaleTransaction {
   timestamp: string;
   blockNumber: number;
   gasUsed: number;
-  type: 'transfer' | 'swap' | 'liquidity' | 'bridge' | 'nft';
+  type: 'transfer' | 'swap' | 'liquidity' | 'bridge' | 'nft' | 'dex_trade';
   whaleScore: number;
+  swapDetails?: {
+    dexName: string;
+    tokenIn: {
+      symbol: string;
+      address: string;
+      amount: number;
+    };
+    tokenOut: {
+      symbol: string;
+      address: string;
+      amount: number;
+    };
+    priceImpact: number;
+    slippage: number;
+  };
+  ethMovement?: {
+    direction: 'in' | 'out';
+    fromExchange?: string;
+    toExchange?: string;
+    isWhaleWallet: boolean;
+  };
 }
 
 interface WhaleWallet {
@@ -2153,11 +2174,75 @@ export default function Home() {
                           </div>
                         </div>
                         
+                        {/* Enhanced transaction details */}
+                        {tx.swapDetails && (
+                          <div className="mt-4 p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                            <h5 className="text-sm font-medium text-blue-400 mb-2">🔄 DEX Swap Details</h5>
+                            <div className="grid grid-cols-2 gap-4 text-xs">
+                              <div>
+                                <p className="text-gray-400">From</p>
+                                <p className="text-white">{tx.swapDetails.tokenIn.amount.toLocaleString()} {tx.swapDetails.tokenIn.symbol}</p>
+                              </div>
+                              <div>
+                                <p className="text-gray-400">To</p>
+                                <p className="text-white">{tx.swapDetails.tokenOut.amount.toLocaleString()} {tx.swapDetails.tokenOut.symbol}</p>
+                              </div>
+                              <div>
+                                <p className="text-gray-400">DEX</p>
+                                <p className="text-blue-400">{tx.swapDetails.dexName}</p>
+                              </div>
+                              <div>
+                                <p className="text-gray-400">Price Impact</p>
+                                <p className="text-red-400">{(tx.swapDetails.priceImpact * 100).toFixed(2)}%</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {tx.ethMovement && (
+                          <div className="mt-4 p-3 bg-purple-500/10 rounded-lg border border-purple-500/20">
+                            <h5 className="text-sm font-medium text-purple-400 mb-2">
+                              {tx.ethMovement.direction === 'out' ? '📤' : '📥'} ETH Movement Analysis
+                            </h5>
+                            <div className="grid grid-cols-2 gap-4 text-xs">
+                              <div>
+                                <p className="text-gray-400">Direction</p>
+                                <p className={`font-medium ${tx.ethMovement.direction === 'out' ? 'text-red-400' : 'text-green-400'}`}>
+                                  {tx.ethMovement.direction === 'out' ? 'Outflow' : 'Inflow'}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-gray-400">Source/Dest</p>
+                                <p className="text-white">
+                                  {tx.ethMovement.fromExchange || tx.ethMovement.toExchange || 'Unknown Wallet'}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-gray-400">Type</p>
+                                <p className="text-purple-400">
+                                  {tx.ethMovement.isWhaleWallet ? 'Whale Wallet' : 'Exchange'}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-gray-400">Value</p>
+                                <p className="text-white">{tx.value.toLocaleString()} ETH</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
                         <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/10">
                           <div className="flex items-center space-x-4 text-xs text-gray-400">
                             <span>Block: {tx.blockNumber}</span>
                             <span>Gas: {tx.gasUsed.toLocaleString()}</span>
                             <span>Score: {tx.whaleScore}/100</span>
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${
+                              tx.type === 'dex_trade' ? 'bg-blue-500/20 text-blue-400' :
+                              tx.type === 'transfer' ? 'bg-green-500/20 text-green-400' :
+                              'bg-gray-500/20 text-gray-400'
+                            }`}>
+                              {tx.type.replace('_', ' ').toUpperCase()}
+                            </span>
                           </div>
                           <span className="text-xs text-gray-400">
                             {new Date(tx.timestamp).toLocaleString()}
