@@ -774,11 +774,11 @@ export default function Home() {
         </div>
 
         {/* Tab Navigation */}
-        <div className="max-w-6xl mx-auto mb-8">
-          <div className="flex justify-center space-x-1 bg-white/10 backdrop-blur-md rounded-xl p-1 border border-white/20">
+        <div className="max-w-7xl mx-auto mb-8">
+          <div className="flex flex-wrap justify-center gap-1 bg-white/10 backdrop-blur-md rounded-xl p-1 border border-white/20">
             <button
               onClick={() => setActiveTab('analyze')}
-              className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+              className={`px-4 py-3 rounded-lg font-medium transition-all duration-200 whitespace-nowrap ${
                 activeTab === 'analyze'
                   ? 'bg-emerald-500 text-white shadow-lg'
                   : 'text-gray-300 hover:text-white hover:bg-white/10'
@@ -788,7 +788,7 @@ export default function Home() {
             </button>
             <button
               onClick={() => setActiveTab('screen')}
-              className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+              className={`px-4 py-3 rounded-lg font-medium transition-all duration-200 whitespace-nowrap ${
                 activeTab === 'screen'
                   ? 'bg-emerald-500 text-white shadow-lg'
                   : 'text-gray-300 hover:text-white hover:bg-white/10'
@@ -798,7 +798,7 @@ export default function Home() {
             </button>
             <button
               onClick={() => setActiveTab('accumulation')}
-              className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+              className={`px-4 py-3 rounded-lg font-medium transition-all duration-200 whitespace-nowrap ${
                 activeTab === 'accumulation'
                   ? 'bg-emerald-500 text-white shadow-lg'
                   : 'text-gray-300 hover:text-white hover:bg-white/10'
@@ -808,7 +808,7 @@ export default function Home() {
             </button>
             <button
               onClick={() => setActiveTab('ai-analysis')}
-              className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+              className={`px-4 py-3 rounded-lg font-medium transition-all duration-200 whitespace-nowrap ${
                 activeTab === 'ai-analysis'
                   ? 'bg-emerald-500 text-white shadow-lg'
                   : 'text-gray-300 hover:text-white hover:bg-white/10'
@@ -818,7 +818,7 @@ export default function Home() {
             </button>
             <button
               onClick={() => setActiveTab('indian-stocks')}
-              className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+              className={`px-4 py-3 rounded-lg font-medium transition-all duration-200 whitespace-nowrap ${
                 activeTab === 'indian-stocks'
                   ? 'bg-emerald-500 text-white shadow-lg'
                   : 'text-gray-300 hover:text-white hover:bg-white/10'
@@ -828,7 +828,7 @@ export default function Home() {
             </button>
             <button
               onClick={() => setActiveTab('crypto-whales')}
-              className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+              className={`px-4 py-3 rounded-lg font-medium transition-all duration-200 whitespace-nowrap ${
                 activeTab === 'crypto-whales'
                   ? 'bg-emerald-500 text-white shadow-lg'
                   : 'text-gray-300 hover:text-white hover:bg-white/10'
@@ -838,7 +838,7 @@ export default function Home() {
             </button>
             <button
               onClick={() => setActiveTab('volume-trends')}
-              className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+              className={`px-4 py-3 rounded-lg font-medium transition-all duration-200 whitespace-nowrap ${
                 activeTab === 'volume-trends'
                   ? 'bg-orange-500 text-white shadow-lg'
                   : 'text-gray-300 hover:text-white hover:bg-white/10'
