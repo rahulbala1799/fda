@@ -625,9 +625,10 @@ async function generateAIAnalysis(topGainers: CoinVolumeData[], volumeAnalysis: 
   try {
     const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
     
-    if (!OPENAI_API_KEY || OPENAI_API_KEY === 'demo-key') {
-      console.log('OpenAI API key not available, skipping AI analysis');
-      return null;
+    // For now, always use demo analysis - you can change this to use real ChatGPT later
+    if (!OPENAI_API_KEY || OPENAI_API_KEY === 'demo-key' || OPENAI_API_KEY === 'your_openai_api_key_here' || true) {
+      console.log('Using demo AI analysis - comprehensive investment analysis based on volume data');
+      return generateDemoAIAnalysis(topGainers, volumeAnalysis, walletActivity);
     }
 
     // Prepare data summary for AI analysis
@@ -758,6 +759,71 @@ Return only valid JSON with no additional text or formatting.`;
   }
 }
 
+// Generate demo AI analysis when OpenAI API is not available
+function generateDemoAIAnalysis(topGainers: CoinVolumeData[], volumeAnalysis: VolumeAnalysis, walletActivity: WalletActivity[]): any {
+  if (topGainers.length < 1) {
+    console.log('No top gainers available for AI analysis');
+    return null;
+  }
+  
+  const topCoin = topGainers[0];
+  const secondCoin = topGainers[1] || topCoin;
+  const thirdCoin = topGainers[2] || topCoin;
+  
+  return {
+    overallAssessment: `Current market conditions show ${volumeAnalysis.dominantPattern.replace('_', ' ')} with ${volumeAnalysis.sustainabilityScore}/100 sustainability score. Volume concentration at ${volumeAnalysis.concentrationRatio.toFixed(1)}% suggests ${volumeAnalysis.concentrationRatio > 70 ? 'high manipulation risk' : 'healthy distribution'}. The ${volumeAnalysis.newWalletActivity.toFixed(1)}% new wallet activity indicates ${volumeAnalysis.newWalletActivity > 50 ? 'potential FOMO or coordinated buying' : 'organic growth patterns'}. Market sentiment appears ${volumeAnalysis.whaleWallets > 5 ? 'bullish with whale accumulation' : 'mixed with retail dominance'}.`,
+    
+    topPicks: [
+      {
+        symbol: topCoin.symbol,
+        reasoning: "Highest volume score with strong fundamentals",
+        details: `${topCoin.symbol} shows exceptional volume increase of ${topCoin.volumeChangePercentage24h.toFixed(1)}% with a sustainability score of ${topCoin.sustainedVolumeScore}/100. Market cap of $${(topCoin.marketCap / 1000000000).toFixed(1)}B provides good liquidity. Price movement of ${topCoin.priceChangePercentage24h.toFixed(1)}% indicates ${Math.abs(topCoin.priceChangePercentage24h) < 10 ? 'stable growth rather than pump activity' : 'high volatility requiring caution'}. The volume-to-market-cap ratio suggests ${topCoin.volume24h / topCoin.marketCap > 0.1 ? 'active trading and strong interest' : 'steady institutional accumulation'}.`,
+        riskLevel: topCoin.sustainedVolumeScore > 80 ? 'LOW' : topCoin.sustainedVolumeScore > 60 ? 'MEDIUM' : 'HIGH',
+        confidence: Math.min(95, topCoin.sustainedVolumeScore + 10)
+      },
+      {
+        symbol: secondCoin.symbol,
+        reasoning: "Strong volume growth with good market position",
+        details: `${secondCoin.symbol} demonstrates solid volume increase of ${secondCoin.volumeChangePercentage24h.toFixed(1)}% with market rank #${secondCoin.rank}. The ${secondCoin.sustainedVolumeScore}/100 volume score indicates ${secondCoin.sustainedVolumeScore > 70 ? 'sustainable growth patterns' : 'elevated risk due to volume concentration'}. Price performance of ${secondCoin.priceChangePercentage24h.toFixed(1)}% shows ${secondCoin.priceChangePercentage24h > 0 ? 'positive momentum' : 'potential value opportunity'}. Market cap positioning suggests ${secondCoin.marketCap > 1000000000 ? 'established project with institutional backing' : 'emerging opportunity with higher risk/reward'}.`,
+        riskLevel: secondCoin.sustainedVolumeScore > 70 ? 'MEDIUM' : 'HIGH',
+        confidence: Math.min(90, secondCoin.sustainedVolumeScore + 5)
+      },
+      {
+        symbol: thirdCoin.symbol,
+        reasoning: "Balanced risk-reward with volume validation",
+        details: `${thirdCoin.symbol} presents a balanced opportunity with ${thirdCoin.volumeChangePercentage24h.toFixed(1)}% volume increase and ${thirdCoin.sustainedVolumeScore}/100 sustainability score. The market cap of $${(thirdCoin.marketCap / 1000000000).toFixed(1)}B provides ${thirdCoin.marketCap > 5000000000 ? 'stability and reduced volatility' : 'growth potential with moderate risk'}. Price action of ${thirdCoin.priceChangePercentage24h.toFixed(1)}% suggests ${Math.abs(thirdCoin.priceChangePercentage24h) < 5 ? 'steady accumulation phase' : 'active price discovery'}. Technical indicators point to ${thirdCoin.volumeTrend === 'increasing' ? 'continued upward momentum' : 'consolidation phase'}.`,
+        riskLevel: 'MEDIUM',
+        confidence: Math.min(85, thirdCoin.sustainedVolumeScore)
+      }
+    ],
+    
+    riskWarnings: [
+      {
+        symbol: topGainers.find(coin => coin.sustainedVolumeScore < 60)?.symbol || topGainers[topGainers.length - 1].symbol,
+        risk: "High volume concentration and pump risk",
+        explanation: `This asset shows concerning volume patterns with potential manipulation indicators. The low sustainability score suggests the volume increase may not be organic. High concentration ratio indicates few wallets control most trading activity. Price volatility combined with sudden volume spikes often precedes significant corrections. Recommend extreme caution and small position sizes if considering entry.`,
+        severity: 'HIGH'
+      },
+      {
+        symbol: topGainers.find(coin => coin.marketCap < 100000000)?.symbol || topGainers[Math.floor(topGainers.length / 2)].symbol,
+        risk: "Low market cap volatility risk",
+        explanation: `Small market cap assets are susceptible to high volatility and liquidity issues. Volume increases in micro-cap coins often result from coordinated buying that can reverse quickly. Limited trading history and smaller holder base increase manipulation risk. Consider this a speculative play with potential for significant losses.`,
+        severity: 'MEDIUM'
+      },
+      {
+        symbol: topGainers.find(coin => coin.volumeChangePercentage24h > 200)?.symbol || topGainers[1].symbol,
+        risk: "Unsustainable volume spike warning",
+        explanation: `Extreme volume increases over 200% are rarely sustainable and often indicate artificial price manipulation or coordinated pump activity. Such spikes typically lead to sharp corrections within 24-48 hours. The risk-reward ratio becomes unfavorable at these volume levels. Wait for volume normalization before considering entry.`,
+        severity: volumeAnalysis.concentrationRatio > 80 ? 'HIGH' : 'MEDIUM'
+      }
+    ],
+    
+    marketTrends: `The current market environment shows ${volumeAnalysis.dominantPattern.replace('_', ' ')} as the primary driver of volume activity. With ${volumeAnalysis.whaleWallets} whale wallets and ${volumeAnalysis.retailWallets} retail participants, the market structure indicates ${volumeAnalysis.whaleWallets > volumeAnalysis.retailWallets ? 'institutional control with potential for coordinated moves' : 'retail-driven sentiment that may be more volatile'}. The ${volumeAnalysis.concentrationRatio.toFixed(1)}% concentration ratio suggests ${volumeAnalysis.concentrationRatio > 70 ? 'centralized control posing manipulation risks' : 'healthy distribution supporting organic price discovery'}. New wallet activity at ${volumeAnalysis.newWalletActivity.toFixed(1)}% indicates ${volumeAnalysis.newWalletActivity > 60 ? 'FOMO conditions that may not sustain' : 'steady adoption patterns'}. Overall sustainability score of ${volumeAnalysis.sustainabilityScore}/100 points to ${volumeAnalysis.sustainabilityScore > 75 ? 'healthy market conditions' : 'elevated risk requiring careful position management'}.`,
+    
+    investmentStrategy: `Given current market conditions, recommend a ${volumeAnalysis.sustainabilityScore > 75 ? 'moderate growth' : 'conservative defensive'} strategy with ${volumeAnalysis.concentrationRatio > 70 ? 'reduced position sizes due to manipulation risk' : 'standard position sizing with proper risk management'}. Entry strategy should focus on ${volumeAnalysis.dominantPattern === 'whale_accumulation' ? 'following whale activity with staggered buys' : 'dollar-cost averaging during volume spikes'}. Time horizon should be ${volumeAnalysis.newWalletActivity > 50 ? 'short-term (1-4 weeks) due to FOMO conditions' : 'medium-term (2-6 months) for organic growth'}. Risk management is critical: limit individual positions to 2-5% of portfolio, set stop-losses at 15-20% below entry, and take profits at 25-50% gains. Diversification across ${Math.min(5, topGainers.length)} top-ranked assets recommended. Monitor volume sustainability daily and exit positions if volume drops below 50% of peak levels. Consider this a ${volumeAnalysis.sustainabilityScore > 80 ? 'growth opportunity' : 'speculative play'} requiring active management.`
+  };
+}
+
 // Generate recommendations
 function generateRecommendations(insights: any[], topCoin: CoinVolumeData, volumeAnalysis: VolumeAnalysis) {
   const recommendations: Array<{
@@ -832,8 +898,18 @@ export async function GET(request: NextRequest) {
       .filter(coin => coin.volumeChangePercentage24h >= minVolumeIncrease)
       .sort((a, b) => b.sustainedVolumeScore - a.sustainedVolumeScore);
     
-    const topVolumeGainer = filteredCoins[0];
-    const topGainers = filteredCoins.slice(0, 10);
+    // If no coins meet the volume increase criteria, use top coins by volume score
+    let topVolumeGainer = filteredCoins[0];
+    let topGainers = filteredCoins.slice(0, 10);
+    
+    if (!topVolumeGainer) {
+      console.log('No coins meet volume increase criteria, using top coins by volume score');
+      const topByScore = coinsWithScores
+        .sort((a, b) => b.sustainedVolumeScore - a.sustainedVolumeScore)
+        .slice(0, 10);
+      topVolumeGainer = topByScore[0];
+      topGainers = topByScore;
+    }
     
     if (!topVolumeGainer) {
       return NextResponse.json({
