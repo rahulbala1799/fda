@@ -70,6 +70,24 @@ interface TrendAnalysisResult {
     reason: string;
     priority: 'low' | 'medium' | 'high';
   }>;
+  aiAnalysis?: {
+    overallAssessment: string;
+    topPicks: Array<{
+      symbol: string;
+      reasoning: string;
+      details: string;
+      riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+      confidence: number;
+    }>;
+    riskWarnings: Array<{
+      symbol: string;
+      risk: string;
+      explanation: string;
+      severity: 'LOW' | 'MEDIUM' | 'HIGH';
+    }>;
+    marketTrends: string;
+    investmentStrategy: string;
+  };
   dataSource: {
     primary: 'coinmarketcap' | 'coingecko' | 'binance';
     volumeDataType: 'real' | 'calculated' | 'estimated';
@@ -602,6 +620,144 @@ function generateInsights(topCoin: CoinVolumeData, volumeAnalysis: VolumeAnalysi
   return insights;
 }
 
+// Generate detailed AI analysis using ChatGPT
+async function generateAIAnalysis(topGainers: CoinVolumeData[], volumeAnalysis: VolumeAnalysis, walletActivity: WalletActivity[]): Promise<any> {
+  try {
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+    
+    if (!OPENAI_API_KEY || OPENAI_API_KEY === 'demo-key') {
+      console.log('OpenAI API key not available, skipping AI analysis');
+      return null;
+    }
+
+    // Prepare data summary for AI analysis
+    const dataForAnalysis = {
+      topGainers: topGainers.slice(0, 10).map(coin => ({
+        symbol: coin.symbol,
+        name: coin.name,
+        price: coin.price,
+        volumeChange: coin.volumeChangePercentage24h,
+        priceChange: coin.priceChangePercentage24h,
+        marketCap: coin.marketCap,
+        rank: coin.rank,
+        volumeScore: coin.sustainedVolumeScore
+      })),
+      marketOverview: {
+        dominantPattern: volumeAnalysis.dominantPattern,
+        whaleWallets: volumeAnalysis.whaleWallets,
+        retailWallets: volumeAnalysis.retailWallets,
+        concentrationRatio: volumeAnalysis.concentrationRatio,
+        sustainabilityScore: volumeAnalysis.sustainabilityScore,
+        newWalletActivity: volumeAnalysis.newWalletActivity
+      },
+      walletPatterns: walletActivity.slice(0, 5).map(wallet => ({
+        type: wallet.walletType,
+        pattern: wallet.activityPattern,
+        isWhale: wallet.isWhale,
+        volume: wallet.totalVolumeUSD
+      }))
+    };
+
+    const prompt = `
+You are a professional cryptocurrency market analyst with expertise in volume analysis, risk assessment, and investment strategy. Analyze the following volume trend data and provide a comprehensive investment analysis.
+
+DATA TO ANALYZE:
+${JSON.stringify(dataForAnalysis, null, 2)}
+
+Please provide a detailed analysis in the following JSON format:
+
+{
+  "overallAssessment": "A comprehensive 3-4 sentence assessment of the current market conditions based on volume trends, wallet activity patterns, and overall market sentiment. Include key observations about market dynamics.",
+  
+  "topPicks": [
+    {
+      "symbol": "COIN_SYMBOL",
+      "reasoning": "Brief reason why this is a top pick",
+      "details": "Detailed explanation of fundamentals, volume analysis, risk factors, and potential upside. Include specific metrics and technical observations.",
+      "riskLevel": "LOW|MEDIUM|HIGH",
+      "confidence": 85
+    }
+  ],
+  
+  "riskWarnings": [
+    {
+      "symbol": "COIN_SYMBOL",
+      "risk": "Primary risk concern",
+      "explanation": "Detailed explanation of why this asset poses risks, including volume patterns, market cap concerns, volatility indicators, or suspicious activity.",
+      "severity": "LOW|MEDIUM|HIGH"
+    }
+  ],
+  
+  "marketTrends": "A detailed 4-5 sentence analysis of current market trends, including volume distribution patterns, whale vs retail activity, market concentration, and what these patterns typically indicate for future price movements.",
+  
+  "investmentStrategy": "A comprehensive investment strategy recommendation including position sizing, entry/exit strategies, diversification advice, and specific timeframes. Consider the current volume patterns and market conditions."
+}
+
+ANALYSIS REQUIREMENTS:
+1. Focus heavily on volume analysis and what volume patterns indicate
+2. Assess each coin's risk level based on market cap, volume sustainability, and wallet activity
+3. Identify potential pump-and-dump schemes or unsustainable volume spikes
+4. Consider market cap to volume ratios for risk assessment
+5. Analyze whale vs retail participation for each asset
+6. Provide specific, actionable investment advice
+7. Be conservative with risk assessments - err on the side of caution
+8. Consider both short-term and long-term perspectives
+9. Include at least 3 top picks and 3 risk warnings
+10. Make recommendations based on data, not speculation
+
+Return only valid JSON with no additional text or formatting.`;
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a professional cryptocurrency market analyst. Provide detailed, accurate analysis in JSON format only.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        max_tokens: 2000,
+        temperature: 0.3
+      })
+    });
+
+    if (!response.ok) {
+      console.error('OpenAI API error:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    const aiResponse = data.choices[0]?.message?.content;
+
+    if (!aiResponse) {
+      console.error('No AI response received');
+      return null;
+    }
+
+    try {
+      const analysisResult = JSON.parse(aiResponse);
+      console.log('AI Analysis generated successfully');
+      return analysisResult;
+    } catch (parseError) {
+      console.error('Error parsing AI response:', parseError);
+      return null;
+    }
+
+  } catch (error) {
+    console.error('Error generating AI analysis:', error);
+    return null;
+  }
+}
+
 // Generate recommendations
 function generateRecommendations(insights: any[], topCoin: CoinVolumeData, volumeAnalysis: VolumeAnalysis) {
   const recommendations: Array<{
@@ -703,6 +859,9 @@ export async function GET(request: NextRequest) {
     const insights = generateInsights(topVolumeGainer, volumeAnalysis, walletActivities);
     const recommendations = generateRecommendations(insights, topVolumeGainer, volumeAnalysis);
     
+    // Step 7: Generate detailed AI analysis
+    const aiAnalysis = await generateAIAnalysis(topGainers, volumeAnalysis, walletActivities);
+    
     const result: TrendAnalysisResult = {
       success: true,
       timestamp: new Date().toISOString(),
@@ -712,6 +871,7 @@ export async function GET(request: NextRequest) {
       volumeAnalysis,
       insights,
       recommendations,
+      aiAnalysis,
               dataSource: {
           primary: COINMARKETCAP_API_KEY && COINMARKETCAP_API_KEY !== 'demo-key' ? 'coinmarketcap' : 'coingecko',
           volumeDataType: COINMARKETCAP_API_KEY && COINMARKETCAP_API_KEY !== 'demo-key' ? 'real' : 'calculated',

@@ -450,6 +450,24 @@ interface TrendAnalysisResult {
     reason: string;
     priority: 'low' | 'medium' | 'high';
   }>;
+  aiAnalysis?: {
+    overallAssessment: string;
+    topPicks: Array<{
+      symbol: string;
+      reasoning: string;
+      details: string;
+      riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+      confidence: number;
+    }>;
+    riskWarnings: Array<{
+      symbol: string;
+      risk: string;
+      explanation: string;
+      severity: 'LOW' | 'MEDIUM' | 'HIGH';
+    }>;
+    marketTrends: string;
+    investmentStrategy: string;
+  };
   dataSource: {
     primary: 'coinmarketcap' | 'coingecko' | 'binance';
     volumeDataType: 'real' | 'calculated' | 'estimated';
@@ -2503,46 +2521,139 @@ export default function Home() {
             {/* Volume Trend Results */}
             {volumeTrendResults && (
               <div className="mt-8 space-y-6">
-                {/* Top Volume Gainer */}
+                {/* Top 10 Volume Gainers */}
                 <div className="bg-gradient-to-r from-orange-500/20 to-red-500/20 backdrop-blur-md rounded-2xl p-6 border border-orange-500/30">
-                  <h4 className="text-xl font-bold text-white mb-4 flex items-center">
+                  <h4 className="text-xl font-bold text-white mb-6 flex items-center">
                     <TrendingUp className="h-6 w-6 text-orange-400 mr-2" />
-                    Top Volume Gainer: {volumeTrendResults.topVolumeGainer.symbol}
+                    Top 10 Volume Gainers
                   </h4>
                   
-                  <div className="grid md:grid-cols-4 gap-4 mb-6">
-                    <div className="bg-white/10 rounded-xl p-4">
-                      <h5 className="text-sm font-medium text-gray-300 mb-2">Current Price</h5>
-                      <p className="text-2xl font-bold text-white">${volumeTrendResults.topVolumeGainer.price.toFixed(4)}</p>
-                      <p className={`text-sm font-medium ${volumeTrendResults.topVolumeGainer.priceChangePercentage24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {formatPercentage(volumeTrendResults.topVolumeGainer.priceChangePercentage24h)}
-                      </p>
-                    </div>
-                    
-                    <div className="bg-white/10 rounded-xl p-4">
-                      <h5 className="text-sm font-medium text-gray-300 mb-2">24h Volume</h5>
-                      <p className="text-2xl font-bold text-white">${(volumeTrendResults.topVolumeGainer.volume24h / 1000000).toFixed(1)}M</p>
-                      <p className="text-sm font-medium text-orange-400">
-                        +{volumeTrendResults.topVolumeGainer.volumeChangePercentage24h.toFixed(1)}%
-                      </p>
-                    </div>
-                    
-                    <div className="bg-white/10 rounded-xl p-4">
-                      <h5 className="text-sm font-medium text-gray-300 mb-2">Market Cap</h5>
-                      <p className="text-2xl font-bold text-white">${(volumeTrendResults.topVolumeGainer.marketCap / 1000000000).toFixed(1)}B</p>
-                      <p className="text-sm font-medium text-gray-400">Rank #{volumeTrendResults.topVolumeGainer.rank}</p>
-                    </div>
-                    
-                    <div className="bg-white/10 rounded-xl p-4">
-                      <h5 className="text-sm font-medium text-gray-300 mb-2">Volume Score</h5>
-                      <p className="text-2xl font-bold text-orange-400">{volumeTrendResults.topVolumeGainer.sustainedVolumeScore}/100</p>
-                      <p className="text-sm font-medium text-gray-400">
-                        {volumeTrendResults.topVolumeGainer.volumeTrend === 'increasing' ? '📈 Rising' : 
-                         volumeTrendResults.topVolumeGainer.volumeTrend === 'decreasing' ? '📉 Falling' : '➡️ Stable'}
-                      </p>
-                    </div>
+                  <div className="space-y-4">
+                    {volumeTrendResults.topGainers.slice(0, 10).map((coin, index) => (
+                      <div key={coin.id} className="bg-white/10 rounded-xl p-4 flex items-center justify-between">
+                        <div className="flex items-center space-x-4">
+                          <div className="bg-orange-500 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold">
+                            {index + 1}
+                          </div>
+                          <div>
+                            <h5 className="text-lg font-bold text-white">{coin.symbol}</h5>
+                            <p className="text-sm text-gray-400">{coin.name}</p>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-4 gap-6 flex-1 ml-6">
+                          <div className="text-center">
+                            <p className="text-xs text-gray-400 mb-1">Price</p>
+                            <p className="text-white font-semibold">${coin.price.toFixed(4)}</p>
+                            <p className={`text-xs ${coin.priceChangePercentage24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {formatPercentage(coin.priceChangePercentage24h)}
+                            </p>
+                          </div>
+                          
+                          <div className="text-center">
+                            <p className="text-xs text-gray-400 mb-1">Volume</p>
+                            <p className="text-white font-semibold">${(coin.volume24h / 1000000).toFixed(1)}M</p>
+                            <p className="text-orange-400 text-xs font-semibold">
+                              +{coin.volumeChangePercentage24h.toFixed(1)}%
+                            </p>
+                          </div>
+                          
+                          <div className="text-center">
+                            <p className="text-xs text-gray-400 mb-1">Market Cap</p>
+                            <p className="text-white font-semibold">
+                              ${coin.marketCap > 1000000000 ? 
+                                (coin.marketCap / 1000000000).toFixed(1) + 'B' : 
+                                (coin.marketCap / 1000000).toFixed(0) + 'M'}
+                            </p>
+                            <p className="text-gray-400 text-xs">Rank #{coin.rank}</p>
+                          </div>
+                          
+                          <div className="text-center">
+                            <p className="text-xs text-gray-400 mb-1">Score</p>
+                            <p className="text-orange-400 font-bold">{coin.sustainedVolumeScore}/100</p>
+                            <p className="text-xs text-gray-400">
+                              {coin.volumeTrend === 'increasing' ? '📈' : 
+                               coin.volumeTrend === 'decreasing' ? '📉' : '➡️'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
+
+                {/* AI Analysis */}
+                {volumeTrendResults.aiAnalysis && (
+                  <div className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 backdrop-blur-md rounded-2xl p-6 border border-purple-500/30">
+                    <h4 className="text-xl font-bold text-white mb-4 flex items-center">
+                      <Brain className="h-6 w-6 text-purple-400 mr-2" />
+                      AI Market Analysis
+                    </h4>
+                    
+                    <div className="space-y-6">
+                      {/* Overall Market Assessment */}
+                      <div className="bg-white/10 rounded-xl p-4">
+                        <h5 className="text-lg font-semibold text-purple-400 mb-3">Overall Market Assessment</h5>
+                        <p className="text-white leading-relaxed">{volumeTrendResults.aiAnalysis.overallAssessment}</p>
+                      </div>
+
+                      {/* Top Picks Analysis */}
+                      <div className="bg-white/10 rounded-xl p-4">
+                        <h5 className="text-lg font-semibold text-green-400 mb-3">Top Investment Opportunities</h5>
+                        <div className="space-y-3">
+                          {volumeTrendResults.aiAnalysis.topPicks.map((pick, index) => (
+                            <div key={index} className="border-l-4 border-green-400 pl-4">
+                              <h6 className="text-white font-semibold">{pick.symbol} - {pick.reasoning}</h6>
+                              <p className="text-gray-300 text-sm mt-1">{pick.details}</p>
+                              <div className="flex items-center space-x-4 mt-2">
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                  pick.riskLevel === 'LOW' ? 'bg-green-500/20 text-green-400' :
+                                  pick.riskLevel === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-400' :
+                                  'bg-red-500/20 text-red-400'
+                                }`}>
+                                  {pick.riskLevel} RISK
+                                </span>
+                                <span className="text-purple-400 text-xs">Confidence: {pick.confidence}%</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Risk Warnings */}
+                      <div className="bg-white/10 rounded-xl p-4">
+                        <h5 className="text-lg font-semibold text-red-400 mb-3">Risk Analysis & Warnings</h5>
+                        <div className="space-y-3">
+                          {volumeTrendResults.aiAnalysis.riskWarnings.map((warning, index) => (
+                            <div key={index} className="border-l-4 border-red-400 pl-4">
+                              <h6 className="text-white font-semibold">{warning.symbol} - {warning.risk}</h6>
+                              <p className="text-gray-300 text-sm mt-1">{warning.explanation}</p>
+                              <span className={`inline-block px-2 py-1 rounded text-xs font-medium mt-2 ${
+                                warning.severity === 'HIGH' ? 'bg-red-500/20 text-red-400' :
+                                warning.severity === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-400' :
+                                'bg-orange-500/20 text-orange-400'
+                              }`}>
+                                {warning.severity} SEVERITY
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Market Trends */}
+                      <div className="bg-white/10 rounded-xl p-4">
+                        <h5 className="text-lg font-semibold text-blue-400 mb-3">Market Trend Analysis</h5>
+                        <p className="text-white leading-relaxed">{volumeTrendResults.aiAnalysis.marketTrends}</p>
+                      </div>
+
+                      {/* Investment Strategy */}
+                      <div className="bg-white/10 rounded-xl p-4">
+                        <h5 className="text-lg font-semibold text-cyan-400 mb-3">Recommended Investment Strategy</h5>
+                        <p className="text-white leading-relaxed">{volumeTrendResults.aiAnalysis.investmentStrategy}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Volume Analysis */}
                 <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
